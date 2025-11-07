@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   LayoutDashboard,
   Users,
@@ -8,54 +8,47 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
+import { initializeApp } from 'firebase/app';
+import { 
+    getAuth, 
+    signInAnonymously, 
+    signInWithCustomToken, 
+    onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+    getFirestore,
+    doc,
+    getDoc,
+    addDoc,
+    setDoc,
+    deleteDoc,
+    onSnapshot,
+    collection,
+    query,
+    where
+} from 'firebase/firestore';
 
-// --- Initial Data ---
-const initialGuests = [
-    { id: 1, name: 'Amanda Lucy', phone: '(+1) 555-0101', tag: 'Friends Bride', invited: true, rsvp: 'yes', numPeople: 2, rehearsal: true, farewell: true, meal: 'Beef' },
-    { id: 2, name: 'Maria Michelle', phone: '(+1) 555-0102', tag: 'Parents Bride', invited: true, rsvp: 'yes', numPeople: 2, rehearsal: true, farewell: false, meal: 'Chicken' },
-    { id: 3, name: 'Luka', phone: '(+1) 555-0103', tag: 'Friends Groom', invited: true, rsvp: 'no', numPeople: 1, rehearsal: false, farewell: false, meal: null },
-    { id: 4, name: 'Rachael Taylor', phone: '(+1) 555-0104', tag: 'Friends Bride', invited: true, rsvp: null, numPeople: 1, rehearsal: false, farewell: false, meal: null },
-    { id: 5, name: 'Daisy Georgia', phone: '(+1) 555-0105', tag: 'Family Groom', invited: true, rsvp: null, numPeople: 4, rehearsal: true, farewell: true, meal: null },
-    { id: 6, name: 'Richard Gabriel', phone: '(+1) 555-0106', tag: 'Friends Groom', invited: false, rsvp: null, numPeople: 2, rehearsal: false, farewell: false, meal: null },
-];
+// --- Global Config ---
+// These are provided by the Canvas environment
+// We'll comment these out because you are running locally
+// const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+// const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-const initialBudgetItems = [
-    { id: 1, type: 'Videographer', category: 'Ceremony', cost: 4000, paid: 1000 },
-    { id: 2, type: 'Make-up Artist', category: 'Ceremony', cost: 500, paid: 500 },
-    { id: 3, type: 'Hair Stylist', category: 'Ceremony', cost: 600, paid: 600 },
-    { id: 4, type: 'Bride Dress', category: 'Reception', cost: 3500, paid: 3500 },
-    { id: 5, type: 'Venue', category: 'Reception', cost: 20000, paid: 10000 },
-    { id: 6, type: 'DJ', category: 'Reception', cost: 2000, paid: 500 },
-    { id: 7, type: 'Wedding Cake', category: 'Reception', cost: 1000, paid: 1000 },
-    { id: 8, type: 'Flowers', category: 'Ceremony', cost: 3000, paid: 1500 },
-];
-
-const initialVendors = [
-    { id: 1, type: 'Venue', name: 'Hotel King', contact: '(+1) 555-0201', email: 'info@hotelking.com', packageNum: 3 },
-    { id: 2, type: 'Venue', name: 'Tuscany Farmhouse', contact: '(+1) 555-0202', email: 'contact@tuscany.com', packageNum: 1 },
-    { id: 3, type: 'Venue', name: 'Plaza Hotel', contact: '(+1) 555-0203', email: 'wedding@plaza.com', packageNum: 1 },
-    { id: 4, type: 'Caterer', name: 'Tomson Wedding', contact: '(+1) 555-0301', email: 'food@tomson.com', packageNum: 2 },
-    { id: 5, type: 'Caterer', name: 'Tuscany Farmhouse', contact: '(+1) 555-0202', email: 'contact@tuscany.com', packageNum: 3 },
-];
-
-const initialTasks = [
-    { id: 1, text: 'Decide on a budget', timeline: '12+ Months', completed: true },
-    { id: 2, text: 'Book venue', timeline: '12+ Months', completed: true },
-    { id: 3, text: 'Create guest list', timeline: '12+ Months', completed: true },
-    { id: 4, text: 'Book photographer/videographer', timeline: '10-12 Months', completed: true },
-    { id: 5, text: 'Hire DJ/band', timeline: '10-12 Months', completed: false },
-    { id: 6, text: 'Purchase wedding dress', timeline: '8-10 Months', completed: true },
-    { id: 7, text: 'Send save-the-dates', timeline: '6-8 Months', completed: false },
-    { id: 8, text: 'Book florist', timeline: '6-8 Months', completed: false },
-    { id: 9, text: 'Order wedding cake', timeline: '4-6 Months', completed: false },
-    { id: 10, text: 'Send invitations', timeline: '2-3 Months', completed: false },
-    { id: 11, text: 'Finalize menu', timeline: '1-2 Months', completed: false },
-    { id: 12, text: 'Create seating chart', timeline: '2-4 Weeks', completed: false },
-    { id: 13, text: 'Get marriage license', timeline: '1 Week', completed: false },
-];
+// --- YOUR FIREBASE CONFIG ---
+// Paste your Firebase config object here
+const firebaseConfig = {
+  apiKey: "AIzaSyAJ9wBW6ao4CBP-YCxt1GXlvwA8CXHQFaE",
+  authDomain: "my-wedding-app-39f14.firebaseapp.com",
+  projectId: "my-wedding-app-39f14",
+  storageBucket: "my-wedding-app-39f14.firebasestorage.app",
+  messagingSenderId: "630903724575",
+  appId: "1:630903724575:web:b9aa188aa01baa50f6932a"
+};
+// --- END YOUR FIREBASE CONFIG ---
 
 const timelineOrder = ['12+ Months', '10-12 Months', '8-10 Months', '6-8 Months', '4-6 Months', '2-3 Months', '1-2 Months', '2-4 Weeks', '1 Week'];
-const currency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(val);
+const currency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
 
 // --- Reusable Doughnut Chart Component ---
 const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
@@ -106,7 +99,7 @@ const Sidebar = ({ currentView, setCurrentView }) => {
                 })}
             </ul>
             <div className="mt-auto">
-                <p className="text-xs text-rose-300">© 2025 SicatDigital</p>
+                <p className="text-xs text-rose-300">© 2025 PlanPerfect</p>
             </div>
         </nav>
     );
@@ -230,26 +223,46 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
 };
 
 // --- Guest List Component ---
-const GuestList = ({ guests, setGuests }) => {
+const GuestList = ({ guests, db, basePath }) => {
     const tagOptions = ['Family Bride', 'Family Groom', 'Friends Bride', 'Friends Groom', 'Other'];
     const mealOptions = ['Beef', 'Chicken', 'Vegan', 'Kids'];
 
-    const addGuest = () => {
-        const newId = Math.max(0, ...guests.map(g => g.id)) + 1;
-        const newGuest = { id: newId, name: 'New Guest', phone: '', tag: 'Other', invited: false, rsvp: null, numPeople: 1, rehearsal: false, farewell: false, meal: null };
-        setGuests(prevGuests => [...prevGuests, newGuest]);
+    const addGuest = async () => {
+        const newGuest = { 
+            name: 'New Guest', 
+            phone: '', 
+            tag: 'Other', 
+            invited: false, 
+            rsvp: null, 
+            numPeople: 1, 
+            rehearsal: false, 
+            farewell: false, 
+            meal: null 
+        };
+        const guestsCol = collection(db, `${basePath}/guests`);
+        try {
+            await addDoc(guestsCol, newGuest);
+        } catch (e) {
+            console.error("Error adding guest: ", e);
+        }
     };
 
-    const updateGuest = (id, field, value) => {
-        setGuests(prevGuests =>
-            prevGuests.map(guest =>
-                guest.id === id ? { ...guest, [field]: value } : guest
-            )
-        );
+    const updateGuest = async (id, field, value) => {
+        const guestDoc = doc(db, `${basePath}/guests`, id);
+        try {
+            await setDoc(guestDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating guest: ", e);
+        }
     };
 
-    const deleteGuest = (id) => {
-        setGuests(prevGuests => prevGuests.filter(guest => guest.id !== id));
+    const deleteGuest = async (id) => {
+        const guestDoc = doc(db, `${basePath}/guests`, id);
+        try {
+            await deleteDoc(guestDoc);
+        } catch (e) {
+            console.error("Error deleting guest: ", e);
+        }
     };
 
     return (
@@ -319,7 +332,7 @@ const GuestList = ({ guests, setGuests }) => {
 };
 
 // --- Budget Component ---
-const Budget = ({ budgetItems, setBudgetItems, totalBudget, setTotalBudget }) => {
+const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     const categoryOptions = ['Ceremony', 'Reception', 'Flowers', 'Attire', 'Other'];
 
     const budgetTotals = useMemo(() => {
@@ -330,22 +343,42 @@ const Budget = ({ budgetItems, setBudgetItems, totalBudget, setTotalBudget }) =>
         return { totalCost, totalPaid, balanceDue, remainingBudget };
     }, [budgetItems, totalBudget]);
     
-    const addBudgetItem = () => {
-        const newId = Math.max(0, ...budgetItems.map(i => i.id)) + 1;
-        const newItem = { id: newId, type: 'New Item', category: 'Other', cost: 0, paid: 0 };
-        setBudgetItems(prev => [...prev, newItem]);
+    const addBudgetItem = async () => {
+        const newItem = { type: 'New Item', category: 'Other', cost: 0, paid: 0 };
+        const itemsCol = collection(db, `${basePath}/budgetItems`);
+        try {
+            await addDoc(itemsCol, newItem);
+        } catch (e) {
+            console.error("Error adding budget item: ", e);
+        }
     };
 
-    const updateBudgetItem = (id, field, value) => {
-        setBudgetItems(prev =>
-            prev.map(item =>
-                item.id === id ? { ...item, [field]: value } : item
-            )
-        );
+    const updateBudgetItem = async (id, field, value) => {
+        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
+        try {
+            await setDoc(itemDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating budget item: ", e);
+        }
     };
 
-    const deleteBudgetItem = (id) => {
-        setBudgetItems(prev => prev.filter(item => item.id !== id));
+    const deleteBudgetItem = async (id) => {
+        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
+        try {
+            await deleteDoc(itemDoc);
+        } catch (e) {
+            console.error("Error deleting budget item: ", e);
+        }
+    };
+
+    const updateTotalBudget = async (newAmount) => {
+        const configDoc = doc(db, `${basePath}/config`, 'budget');
+        try {
+            // Use setDoc with merge to create or update
+            await setDoc(configDoc, { amount: newAmount }, { merge: true });
+        } catch (e) {
+            console.error("Error updating total budget: ", e);
+        }
     };
 
     return (
@@ -354,7 +387,13 @@ const Budget = ({ budgetItems, setBudgetItems, totalBudget, setTotalBudget }) =>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div className="bg-white p-6 rounded-xl shadow-lg">
                     <label htmlFor="totalBudget" className="text-sm font-medium text-rose-800">Total Budget</label>
-                    <input type="number" id="totalBudget" value={totalBudget} onChange={e => setTotalBudget(parseFloat(e.target.value) || 0)} className="text-3xl font-bold text-rose-900 w-full p-1 -ml-1 rounded" />
+                    <input 
+                        type="number" 
+                        id="totalBudget" 
+                        value={totalBudget} 
+                        onChange={e => updateTotalBudget(parseFloat(e.target.value) || 0)} 
+                        className="text-3xl font-bold text-rose-900 w-full p-1 -ml-1 rounded" 
+                    />
                 </div>
                 <div className="bg-white p-6 rounded-xl shadow-lg">
                     <p className="text-sm font-medium text-rose-800">Remaining Budget</p>
@@ -424,25 +463,35 @@ const Budget = ({ budgetItems, setBudgetItems, totalBudget, setTotalBudget }) =>
 };
 
 // --- Vendors Component ---
-const Vendors = ({ vendors, setVendors }) => {
+const Vendors = ({ vendors, db, basePath }) => {
     const vendorTypes = ['Venue', 'Caterer', 'Photographer', 'Videographer', 'Florist', 'Band/DJ', 'Other'];
 
-    const addVendor = () => {
-        const newId = Math.max(0, ...vendors.map(v => v.id)) + 1;
-        const newVendor = { id: newId, type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
-        setVendors(prev => [...prev, newVendor]);
+    const addVendor = async () => {
+        const newVendor = { type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
+        const vendorsCol = collection(db, `${basePath}/vendors`);
+        try {
+            await addDoc(vendorsCol, newVendor);
+        } catch (e) {
+            console.error("Error adding vendor: ", e);
+        }
     };
 
-    const updateVendor = (id, field, value) => {
-        setVendors(prev =>
-            prev.map(vendor =>
-                vendor.id === id ? { ...vendor, [field]: value } : vendor
-            )
-        );
+    const updateVendor = async (id, field, value) => {
+        const vendorDoc = doc(db, `${basePath}/vendors`, id);
+        try {
+            await setDoc(vendorDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating vendor: ", e);
+        }
     };
 
-    const deleteVendor = (id) => {
-        setVendors(prev => prev.filter(vendor => vendor.id !== id));
+    const deleteVendor = async (id) => {
+        const vendorDoc = doc(db, `${basePath}/vendors`, id);
+        try {
+            await deleteDoc(vendorDoc);
+        } catch (e) {
+            console.error("Error deleting vendor: ", e);
+        }
     };
     
     return (
@@ -493,32 +542,47 @@ const Vendors = ({ vendors, setVendors }) => {
 };
 
 // --- Checklist Component ---
-const Checklist = ({ tasks, setTasks }) => {
+const Checklist = ({ tasks, db, basePath }) => {
     
     const timelines = useMemo(() => {
-        const uniqueTimelines = [...new Set(tasks.map(t => t.timeline))];
-        uniqueTimelines.sort((a, b) => timelineOrder.indexOf(a) - timelineOrder.indexOf(b));
-        return uniqueTimelines;
+        // Use a static list to ensure order and presence, even if empty
+        return timelineOrder;
+    }, []);
+
+    const tasksByTimeline = useMemo(() => {
+        const grouped = {};
+        tasks.forEach(task => {
+            if (!grouped[task.timeline]) {
+                grouped[task.timeline] = [];
+            }
+            grouped[task.timeline].push(task);
+        });
+        return grouped;
     }, [tasks]);
 
-    const toggleTask = (id) => {
-        setTasks(prev =>
-            prev.map(task =>
-                task.id === id ? { ...task, completed: !task.completed } : task
-            )
-        );
+    const toggleTask = async (id, currentStatus) => {
+        const taskDoc = doc(db, `${basePath}/tasks`, id);
+        try {
+            await setDoc(taskDoc, { completed: !currentStatus }, { merge: true });
+        } catch (e) {
+            console.error("Error toggling task: ", e);
+        }
     };
     
-    const addTask = (event) => {
+    const addTask = async (event) => {
         event.preventDefault();
         const text = event.target.elements['new-task-text'].value;
         const timeline = event.target.elements['new-task-timeline'].value;
         
         if (text) {
-            const newId = Math.max(0, ...tasks.map(t => t.id)) + 1;
-            const newTask = { id: newId, text, timeline, completed: false };
-            setTasks(prev => [...prev, newTask].sort((a, b) => timelineOrder.indexOf(a.timeline) - timelineOrder.indexOf(b.timeline)));
-            event.target.reset();
+            const newTask = { text, timeline, completed: false };
+            const tasksCol = collection(db, `${basePath}/tasks`);
+            try {
+                await addDoc(tasksCol, newTask);
+                event.target.reset();
+            } catch (e) {
+                console.error("Error adding task: ", e);
+            }
         }
     };
 
@@ -529,19 +593,32 @@ const Checklist = ({ tasks, setTasks }) => {
             </div>
             
             <div className="space-y-8">
-                {timelines.map(timeline => (
-                    <div key={timeline} className="bg-white p-6 rounded-xl shadow-lg">
-                        <h2 className="text-2xl font-semibold text-rose-800 mb-5 border-b border-rose-200 pb-3">{timeline}</h2>
-                        <ul className="space-y-4">
-                            {tasks.filter(t => t.timeline === timeline).map(task => (
-                                <li key={task.id} className="flex items-center">
-                                    <input type="checkbox" id={`task-${task.id}`} checked={task.completed} onChange={() => toggleTask(task.id)} className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" />
-                                    <label htmlFor={`task-${task.id}`} className={`ml-3 text-gray-800 ${task.completed ? 'line-through text-gray-400' : ''}`}>{task.text}</label>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                ))}
+                {timelines.map(timeline => {
+                    const tasksForTimeline = tasksByTimeline[timeline] || [];
+                    return (
+                        <div key={timeline} className="bg-white p-6 rounded-xl shadow-lg">
+                            <h2 className="text-2xl font-semibold text-rose-800 mb-5 border-b border-rose-200 pb-3">{timeline}</h2>
+                            {tasksForTimeline.length === 0 ? (
+                                <p className="text-gray-400 italic">No tasks for this period.</p>
+                            ) : (
+                                <ul className="space-y-4">
+                                    {tasksForTimeline.map(task => (
+                                        <li key={task.id} className="flex items-center">
+                                            <input 
+                                                type="checkbox" 
+                                                id={`task-${task.id}`} 
+                                                checked={task.completed} 
+                                                onChange={() => toggleTask(task.id, task.completed)} 
+                                                className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" 
+                                            />
+                                            <label htmlFor={`task-${task.id}`} className={`ml-3 text-gray-800 ${task.completed ? 'line-through text-gray-400' : ''}`}>{task.text}</label>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
             
             <div className="bg-white p-6 rounded-xl shadow-lg mt-8">
@@ -563,26 +640,140 @@ const Checklist = ({ tasks, setTasks }) => {
 
 // --- Main App Component ---
 export default function App() {
-    // --- State ---
+    // --- App State ---
     const [currentView, setCurrentView] = useState('dashboard');
-    const [totalBudget, setTotalBudget] = useState(100000);
-    const [guests, setGuests] = useState(initialGuests);
-    const [budgetItems, setBudgetItems] = useState(initialBudgetItems);
-    const [vendors, setVendors] = useState(initialVendors);
-    const [tasks, setTasks] = useState(initialTasks);
+    
+    // --- Firebase State ---
+    const [db, setDb] = useState(null);
+    const [auth, setAuth] = useState(null);
+    const [userId, setUserId] = useState(null);
+    const [basePath, setBasePath] = useState('');
+    const [isAuthReady, setIsAuthReady] = useState(false);
 
+    // --- Data State ---
+    const [totalBudget, setTotalBudget] = useState(100000);
+    const [guests, setGuests] = useState([]);
+    const [budgetItems, setBudgetItems] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [tasks, setTasks] = useState([]);
+
+    // --- 1. Initialize Firebase & Auth ---
+    useEffect(() => {
+        if (!firebaseConfig.apiKey) {
+            console.error("Firebase config is missing!");
+            return;
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const authInstance = getAuth(app);
+        const dbInstance = getFirestore(app);
+
+        setAuth(authInstance);
+        setDb(dbInstance);
+
+        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+            if (user) {
+                // User is signed in
+                setUserId(user.uid);
+                // We'll use a simpler path for your personal database
+                setBasePath(`/users/${user.uid}`);
+                setIsAuthReady(true);
+            } else {
+                // User is signed out, attempt to sign in
+                try {
+                    // When running locally, we don't have a custom token.
+                    // Just sign in anonymously.
+                    await signInAnonymously(authInstance);
+                } catch (error) {
+                    console.error("Error signing in: ", error);
+                    setIsAuthReady(false); // Auth failed
+                }
+            }
+        });
+
+        // Cleanup auth listener on component unmount
+        return () => unsubscribe();
+    }, []); // Run only once
+
+    // --- 2. Listen to Firestore Data ---
+    useEffect(() => {
+        // Only run if auth is ready and we have a db instance and user path
+        if (!isAuthReady || !db || !basePath) return;
+
+        console.log(`Setting up listeners for user path: ${basePath}`);
+
+        // Listen to Guests
+        const guestsQuery = query(collection(db, `${basePath}/guests`));
+        const unsubGuests = onSnapshot(guestsQuery, (querySnapshot) => {
+            const guestData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setGuests(guestData);
+        }, (error) => console.error("Error listening to guests: ", error));
+
+        // Listen to Budget Items
+        const budgetQuery = query(collection(db, `${basePath}/budgetItems`));
+        const unsubBudgetItems = onSnapshot(budgetQuery, (querySnapshot) => {
+            const budgetData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setBudgetItems(budgetData);
+        }, (error) => console.error("Error listening to budget items: ", error));
+
+        // Listen to Vendors
+        const vendorsQuery = query(collection(db, `${basePath}/vendors`));
+        const unsubVendors = onSnapshot(vendorsQuery, (querySnapshot) => {
+            const vendorData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setVendors(vendorData);
+        }, (error) => console.error("Error listening to vendors: ", error));
+
+        // Listen to Tasks
+        const tasksQuery = query(collection(db, `${basePath}/tasks`));
+        const unsubTasks = onSnapshot(tasksQuery, (querySnapshot) => {
+            const taskData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort tasks by timeline order
+            taskData.sort((a, b) => timelineOrder.indexOf(a.timeline) - timelineOrder.indexOf(b.timeline));
+            setTasks(taskData);
+        }, (error) => console.error("Error listening to tasks: ", error));
+
+        // Listen to Total Budget
+        const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
+        const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
+            if (docSnap.exists()) {
+                setTotalBudget(docSnap.data().amount || 100000);
+            } else {
+                // If doc doesn't exist, set default and maybe create it
+                setTotalBudget(100000);
+            }
+        }, (error) => console.error("Error listening to total budget: ", error));
+
+        // Cleanup all listeners on component unmount or when path changes
+        return () => {
+            unsubGuests();
+            unsubBudgetItems();
+            unsubVendors();
+            unsubTasks();
+            unsubTotalBudget();
+        };
+
+    }, [isAuthReady, db, basePath]); // Rerun if auth/db changes
+
+    
     // --- Props for children ---
+    // Data is passed down from state
     const pageProps = {
-        guests, setGuests,
-        budgetItems, setBudgetItems,
-        vendors, setVendors,
-        tasks, setTasks,
-        totalBudget, setTotalBudget,
-        setCurrentView
+        guests,
+        budgetItems,
+        vendors,
+        tasks,
+        totalBudget,
+        setCurrentView,
+        db, // Pass db and basePath for writing data
+        basePath
     };
     
     // --- Content Router ---
     const renderContent = () => {
+        if (!isAuthReady) {
+            return <h1 className="text-3xl font-bold p-10">Loading Planner...</h1>;
+        }
+        
         switch (currentView) {
             case 'dashboard':
                 return <Dashboard {...pageProps} />;
