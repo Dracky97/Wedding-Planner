@@ -51,7 +51,8 @@ const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
         <div className="relative w-24 h-24">
             <div className="w-24 h-24 rounded-full" style={{ background }}></div>
             <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-full flex items-center justify-center flex-col line-height-1.2"
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-full flex items-center justify-center flex-col"
+                style={{ lineHeight: 1.2 }} // <-- FIX: Replaced invalid class 'line-height-1.2' with correct inline style
             >
                 <span className="text-lg font-bold text-rose-900">{text}</span>
                 <span className="text-xs text-gray-500">{subtext}</span>
@@ -108,8 +109,7 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
         const balanceDue = totalCost - totalSpent;
         const remainingBudget = totalBudget - totalCost;
         const spentPercent = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
-        const duePercent = totalBudget > 0 ? (totalCost / totalBudget) * 100 : 0;
-        return { totalSpent, balanceDue, remainingBudget, spentPercent, duePercent };
+        return { totalSpent, balanceDue, remainingBudget, spentPercent };
     }, [budgetItems, totalBudget]);
 
     // Attendance Calculations
@@ -119,8 +119,7 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
         const notAttending = guests.filter(g => g.rsvp === 'no').reduce((sum, g) => sum + g.numPeople, 0);
         const unconfirmed = totalInvited - attending - notAttending;
         const attendingPercent = totalInvited > 0 ? (attending / totalInvited) * 100 : 0;
-        const notAttendingPercent = totalInvited > 0 ? ((attending + notAttending) / totalInvited) * 100 : 0;
-        return { totalInvited, attending, notAttending, unconfirmed, attendingPercent, notAttendingPercent };
+        return { totalInvited, attending, notAttending, unconfirmed, attendingPercent };
     }, [guests]);
 
     // Task Calculations
@@ -223,8 +222,10 @@ const GuestList = ({ guests, db, basePath }) => {
     
     // --- NEW: Updated tag options
     const tagOptions = ['Brides Side', 'Grooms Side'];
+    const mealOptions = ['Beef', 'Chicken', 'Vegan', 'Kids'];
 
     const addGuest = async () => {
+        if (!db || !basePath) return; // Prevent adding if db not ready
         const newGuest = { 
             name: 'New Guest', 
             phone: '', 
@@ -233,7 +234,8 @@ const GuestList = ({ guests, db, basePath }) => {
             invited: false, 
             rsvp: null, 
             numPeople: 1, 
-            // --- REMOVED: rehearsal, farewell, and meal
+            // --- REMOVED: rehearsal and farewell
+            meal: null 
         };
         const guestsCol = collection(db, `${basePath}/guests`);
         try {
@@ -244,6 +246,7 @@ const GuestList = ({ guests, db, basePath }) => {
     };
 
     const updateGuest = async (id, field, value) => {
+        if (!db || !basePath) return;
         const guestDoc = doc(db, `${basePath}/guests`, id);
         try {
             await setDoc(guestDoc, { [field]: value }, { merge: true });
@@ -253,6 +256,7 @@ const GuestList = ({ guests, db, basePath }) => {
     };
 
     const deleteGuest = async (id) => {
+        if (!db || !basePath) return;
         const guestDoc = doc(db, `${basePath}/guests`, id);
         try {
             await deleteDoc(guestDoc);
@@ -323,6 +327,8 @@ const GuestList = ({ guests, db, basePath }) => {
                             <th className="p-4 font-semibold text-rose-800">Invited</th>
                             <th className="p-4 font-semibold text-rose-800">#</th>
                             <th className="p-4 font-semibold text-rose-800">RSVP</th>
+                            {/* --- REMOVED: Rehearsal and Farewell Headers --- */}
+                            <th className="p-4 font-semibold text-rose-800">Meal</th>
                             <th className="p-4 font-semibold text-rose-800"></th>
                         </tr>
                     </thead>
@@ -345,6 +351,13 @@ const GuestList = ({ guests, db, basePath }) => {
                                         <option value="">-</option>
                                         <option value="yes">Yes</option>
                                         <option value="no">No</option>
+                                    </select>
+                                </td>
+                                {/* --- REMOVED: Rehearsal and Farewell Cells --- */}
+                                <td className="p-3">
+                                    <select value={guest.meal || ''} onChange={e => updateGuest(guest.id, 'meal', e.target.value || null)} className="w-full p-1 rounded border-gray-300" disabled={guest.rsvp !== 'yes'}>
+                                        <option value="">-</option>
+                                        {mealOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </td>
                                 <td className="p-3 text-center">
@@ -374,6 +387,7 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     }, [budgetItems, totalBudget]);
     
     const addBudgetItem = async () => {
+        if (!db || !basePath) return;
         const newItem = { type: 'New Item', category: 'Other', cost: 0, paid: 0 };
         const itemsCol = collection(db, `${basePath}/budgetItems`);
         try {
@@ -384,6 +398,7 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     };
 
     const updateBudgetItem = async (id, field, value) => {
+        if (!db || !basePath) return;
         const itemDoc = doc(db, `${basePath}/budgetItems`, id);
         try {
             await setDoc(itemDoc, { [field]: value }, { merge: true });
@@ -393,6 +408,7 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     };
 
     const deleteBudgetItem = async (id) => {
+        if (!db || !basePath) return;
         const itemDoc = doc(db, `${basePath}/budgetItems`, id);
         try {
             await deleteDoc(itemDoc);
@@ -402,6 +418,7 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     };
 
     const updateTotalBudget = async (newAmount) => {
+        if (!db || !basePath) return;
         const configDoc = doc(db, `${basePath}/config`, 'budget');
         try {
             // Use setDoc with merge to create or update
@@ -497,6 +514,7 @@ const Vendors = ({ vendors, db, basePath }) => {
     const vendorTypes = ['Venue', 'Caterer', 'Photographer', 'Videographer', 'Florist', 'Band/DJ', 'Other'];
 
     const addVendor = async () => {
+        if (!db || !basePath) return;
         const newVendor = { type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
         const vendorsCol = collection(db, `${basePath}/vendors`);
         try {
@@ -507,6 +525,7 @@ const Vendors = ({ vendors, db, basePath }) => {
     };
 
     const updateVendor = async (id, field, value) => {
+        if (!db || !basePath) return;
         const vendorDoc = doc(db, `${basePath}/vendors`, id);
         try {
             await setDoc(vendorDoc, { [field]: value }, { merge: true });
@@ -516,6 +535,7 @@ const Vendors = ({ vendors, db, basePath }) => {
     };
 
     const deleteVendor = async (id) => {
+        if (!db || !basePath) return;
         const vendorDoc = doc(db, `${basePath}/vendors`, id);
         try {
             await deleteDoc(vendorDoc);
@@ -591,6 +611,7 @@ const Checklist = ({ tasks, db, basePath }) => {
     }, [tasks]);
 
     const toggleTask = async (id, currentStatus) => {
+        if (!db || !basePath) return;
         const taskDoc = doc(db, `${basePath}/tasks`, id);
         try {
             await setDoc(taskDoc, { completed: !currentStatus }, { merge: true });
@@ -601,6 +622,7 @@ const Checklist = ({ tasks, db, basePath }) => {
     
     const addTask = async (event) => {
         event.preventDefault();
+        if (!db || !basePath) return;
         const text = event.target.elements['new-task-text'].value;
         const timeline = event.target.elements['new-task-timeline'].value;
         
@@ -793,6 +815,11 @@ export default function App() {
         tasks,
         totalBudget,
         setCurrentView,
+        setGuests, // Passing setters down
+        setBudgetItems,
+        setVendors,
+        setTasks,
+        setTotalBudget,
         db, // Pass db and basePath for writing data
         basePath
     };
@@ -807,7 +834,6 @@ export default function App() {
             case 'dashboard':
                 return <Dashboard {...pageProps} />;
             case 'guestlist':
-                // --- THIS IS THE FIX ---
                 return <GuestList {...pageProps} />;
             case 'budget':
                 return <Budget {...pageProps} />;
