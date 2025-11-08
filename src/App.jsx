@@ -12,32 +12,20 @@ import { initializeApp } from 'firebase/app';
 import { 
     getAuth, 
     signInAnonymously, 
-    signInWithCustomToken, 
     onAuthStateChanged 
 } from 'firebase/auth';
 import { 
     getFirestore,
     doc,
-    getDoc,
     addDoc,
     setDoc,
     deleteDoc,
     onSnapshot,
     collection,
     query,
-    where
 } from 'firebase/firestore';
 
-// --- Global Config ---
-// These are provided by the Canvas environment
-// We'll comment these out because you are running locally
-// const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-// const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-// const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
+// --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAJ9wBW6ao4CBP-YCxt1GXlvwA8CXHQFaE",
@@ -47,11 +35,13 @@ const firebaseConfig = {
   messagingSenderId: "630903724575",
   appId: "1:630903724575:web:b9aa188aa01baa50f6932a"
 };
+// --- END YOUR FIREBASE CONFIG ---
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 const timelineOrder = ['12+ Months', '10-12 Months', '8-10 Months', '6-8 Months', '4-6 Months', '2-3 Months', '1-2 Months', '2-4 Weeks', '1 Week'];
+// --- Currency Updated to LKR ---
 const currency = (val) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(val);
 
 // --- Reusable Doughnut Chart Component ---
@@ -215,7 +205,7 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
                     {taskStats.upcomingTasks.length === 0 && <p className="text-gray-500">All tasks completed! 🎉</p>}
                     {taskStats.upcomingTasks.map(task => (
                         <li key={task.id} className="flex items-center">
-                            <input type="checkbox" id={`task-dash-${task.id}`} className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" disabled />
+                            <input type="checkbox" id={`task-dash-${task.id}`} className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" defaultChecked={task.completed} disabled />
                             <label htmlFor={`task-dash-${task.id}`} className="ml-3 text-gray-700">{task.text} <span className="text-xs text-gray-400 ml-2">({task.timeline})</span></label>
                         </li>
                     ))}
@@ -228,44 +218,101 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
 
 // --- Guest List Component ---
 const GuestList = ({ guests, db, basePath }) => {
-    const tagOptions = ['Family Bride', 'Family Groom', 'Friends Bride', 'Friends Groom', 'Other'];
-    const mealOptions = ['Beef', 'Chicken', 'Vegan', 'Kids'];
+    // --- STATE for filtering
+    const [filterSide, setFilterSide] = useState('Brides Side'); // 'Brides Side' or 'Grooms Side'
+    
+    // --- NEW: Updated tag options
+    const tagOptions = ['Brides Side', 'Grooms Side'];
 
     const addGuest = async () => {
-        const newGuest = {
-            id: Date.now().toString(),
-            name: 'New Guest',
-            phone: '',
-            tag: 'Other',
-            invited: false,
-            rsvp: null,
-            numPeople: 1,
-            rehearsal: false,
-            farewell: false,
-            meal: null
+        const newGuest = { 
+            name: 'New Guest', 
+            phone: '', 
+            // --- NEW: Updated default tag
+            tag: filterSide, // Default to the currently viewed side
+            invited: false, 
+            rsvp: null, 
+            numPeople: 1, 
+            // --- REMOVED: rehearsal, farewell, and meal
         };
-        setGuests(prev => [...prev, newGuest]);
+        const guestsCol = collection(db, `${basePath}/guests`);
+        try {
+            await addDoc(guestsCol, newGuest);
+        } catch (e) {
+            console.error("Error adding guest: ", e);
+        }
     };
 
     const updateGuest = async (id, field, value) => {
-        setGuests(prev => prev.map(guest =>
-            guest.id === id ? { ...guest, [field]: value } : guest
-        ));
+        const guestDoc = doc(db, `${basePath}/guests`, id);
+        try {
+            await setDoc(guestDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating guest: ", e);
+        }
     };
 
     const deleteGuest = async (id) => {
-        setGuests(prev => prev.filter(guest => guest.id !== id));
+        const guestDoc = doc(db, `${basePath}/guests`, id);
+        try {
+            await deleteDoc(guestDoc);
+        } catch (e) {
+            console.error("Error deleting guest: ", e);
+        }
     };
+
+    // --- NEW: Filter guests based on state
+    const filteredGuests = useMemo(() => {
+        return guests.filter(guest => guest.tag === filterSide);
+    }, [guests, filterSide]);
+
+    // --- NEW: Calculate totals for tabs
+    const bridesSideTotal = useMemo(() => {
+        return guests
+            .filter(g => g.tag === 'Brides Side')
+            .reduce((sum, g) => sum + g.numPeople, 0);
+    }, [guests]);
+    
+    const groomsSideTotal = useMemo(() => {
+        return guests
+            .filter(g => g.tag === 'Grooms Side')
+            .reduce((sum, g) => sum + g.numPeople, 0);
+    }, [guests]);
 
     return (
         <>
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex justify-between items-center mb-4"> {/* Reduced margin bottom */}
                 <h1 className="text-4xl font-bold text-rose-900">Guest List</h1>
                 <button onClick={addGuest} className="bg-rose-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors flex items-center space-x-2">
                     <Plus className="w-5 h-5" />
                     <span>Add Guest</span>
                 </button>
             </div>
+            
+            {/* --- NEW: Filter Tabs --- */}
+            <div className="flex mb-4 border-b border-gray-300">
+                <button
+                    onClick={() => setFilterSide('Brides Side')}
+                    className={`px-6 py-3 font-medium ${
+                        filterSide === 'Brides Side' 
+                        ? 'text-rose-700 border-b-2 border-rose-700' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Brides Side ({bridesSideTotal})
+                </button>
+                <button
+                    onClick={() => setFilterSide('Grooms Side')}
+                    className={`px-6 py-3 font-medium ${
+                        filterSide === 'Grooms Side' 
+                        ? 'text-rose-700 border-b-2 border-rose-700' 
+                        : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                    Grooms Side ({groomsSideTotal})
+                </button>
+            </div>
+
             <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-rose-100">
@@ -276,19 +323,18 @@ const GuestList = ({ guests, db, basePath }) => {
                             <th className="p-4 font-semibold text-rose-800">Invited</th>
                             <th className="p-4 font-semibold text-rose-800">#</th>
                             <th className="p-4 font-semibold text-rose-800">RSVP</th>
-                            <th className="p-4 font-semibold text-rose-800">Rehearsal</th>
-                            <th className="p-4 font-semibold text-rose-800">Farewell</th>
-                            <th className="p-4 font-semibold text-rose-800">Meal</th>
                             <th className="p-4 font-semibold text-rose-800"></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {guests.map(guest => (
+                        {/* --- NEW: Use filteredGuests array --- */}
+                        {filteredGuests.map(guest => (
                             <tr key={guest.id} className="border-b border-rose-100 last:border-b-0">
                                 <td className="p-3"><input type="text" value={guest.name} onChange={e => updateGuest(guest.id, 'name', e.target.value)} className="w-full p-1 rounded border-gray-300" /></td>
                                 <td className="p-3"><input type="text" value={guest.phone} onChange={e => updateGuest(guest.id, 'phone', e.target.value)} className="w-full p-1 rounded border-gray-300" /></td>
                                 <td className="p-3">
                                     <select value={guest.tag} onChange={e => updateGuest(guest.id, 'tag', e.target.value)} className="w-full p-1 rounded border-gray-300">
+                                        {/* --- NEW: Updated tag options --- */}
                                         {tagOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </td>
@@ -299,14 +345,6 @@ const GuestList = ({ guests, db, basePath }) => {
                                         <option value="">-</option>
                                         <option value="yes">Yes</option>
                                         <option value="no">No</option>
-                                    </select>
-                                </td>
-                                <td className="p-3 text-center"><input type="checkbox" checked={guest.rehearsal} onChange={e => updateGuest(guest.id, 'rehearsal', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" /></td>
-                                <td className="p-3 text-center"><input type="checkbox" checked={guest.farewell} onChange={e => updateGuest(guest.id, 'farewell', e.target.checked)} className="h-5 w-5 rounded border-gray-300 text-rose-600 focus:ring-rose-500" /></td>
-                                <td className="p-3">
-                                    <select value={guest.meal || ''} onChange={e => updateGuest(guest.id, 'meal', e.target.value || null)} className="w-full p-1 rounded border-gray-300" disabled={guest.rsvp !== 'yes'}>
-                                        <option value="">-</option>
-                                        {mealOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </td>
                                 <td className="p-3 text-center">
@@ -336,22 +374,41 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     }, [budgetItems, totalBudget]);
     
     const addBudgetItem = async () => {
-        const newItem = { id: Date.now().toString(), type: 'New Item', category: 'Other', cost: 0, paid: 0 };
-        setBudgetItems(prev => [...prev, newItem]);
+        const newItem = { type: 'New Item', category: 'Other', cost: 0, paid: 0 };
+        const itemsCol = collection(db, `${basePath}/budgetItems`);
+        try {
+            await addDoc(itemsCol, newItem);
+        } catch (e) {
+            console.error("Error adding budget item: ", e);
+        }
     };
 
     const updateBudgetItem = async (id, field, value) => {
-        setBudgetItems(prev => prev.map(item =>
-            item.id === id ? { ...item, [field]: value } : item
-        ));
+        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
+        try {
+            await setDoc(itemDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating budget item: ", e);
+        }
     };
 
     const deleteBudgetItem = async (id) => {
-        setBudgetItems(prev => prev.filter(item => item.id !== id));
+        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
+        try {
+            await deleteDoc(itemDoc);
+        } catch (e) {
+            console.error("Error deleting budget item: ", e);
+        }
     };
 
     const updateTotalBudget = async (newAmount) => {
-        setTotalBudget(newAmount);
+        const configDoc = doc(db, `${basePath}/config`, 'budget');
+        try {
+            // Use setDoc with merge to create or update
+            await setDoc(configDoc, { amount: newAmount }, { merge: true });
+        } catch (e) {
+            console.error("Error updating total budget: ", e);
+        }
     };
 
     return (
@@ -440,18 +497,31 @@ const Vendors = ({ vendors, db, basePath }) => {
     const vendorTypes = ['Venue', 'Caterer', 'Photographer', 'Videographer', 'Florist', 'Band/DJ', 'Other'];
 
     const addVendor = async () => {
-        const newVendor = { id: Date.now().toString(), type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
-        setVendors(prev => [...prev, newVendor]);
+        const newVendor = { type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
+        const vendorsCol = collection(db, `${basePath}/vendors`);
+        try {
+            await addDoc(vendorsCol, newVendor);
+        } catch (e) {
+            console.error("Error adding vendor: ", e);
+        }
     };
 
     const updateVendor = async (id, field, value) => {
-        setVendors(prev => prev.map(vendor =>
-            vendor.id === id ? { ...vendor, [field]: value } : vendor
-        ));
+        const vendorDoc = doc(db, `${basePath}/vendors`, id);
+        try {
+            await setDoc(vendorDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating vendor: ", e);
+        }
     };
 
     const deleteVendor = async (id) => {
-        setVendors(prev => prev.filter(vendor => vendor.id !== id));
+        const vendorDoc = doc(db, `${basePath}/vendors`, id);
+        try {
+            await deleteDoc(vendorDoc);
+        } catch (e) {
+            console.error("Error deleting vendor: ", e);
+        }
     };
     
     return (
@@ -521,20 +591,28 @@ const Checklist = ({ tasks, db, basePath }) => {
     }, [tasks]);
 
     const toggleTask = async (id, currentStatus) => {
-        setTasks(prev => prev.map(task =>
-            task.id === id ? { ...task, completed: !currentStatus } : task
-        ));
+        const taskDoc = doc(db, `${basePath}/tasks`, id);
+        try {
+            await setDoc(taskDoc, { completed: !currentStatus }, { merge: true });
+        } catch (e) {
+            console.error("Error toggling task: ", e);
+        }
     };
-
+    
     const addTask = async (event) => {
         event.preventDefault();
         const text = event.target.elements['new-task-text'].value;
         const timeline = event.target.elements['new-task-timeline'].value;
-
+        
         if (text) {
-            const newTask = { id: Date.now().toString(), text, timeline, completed: false };
-            setTasks(prev => [...prev, newTask]);
-            event.target.reset();
+            const newTask = { text, timeline, completed: false };
+            const tasksCol = collection(db, `${basePath}/tasks`);
+            try {
+                await addDoc(tasksCol, newTask);
+                event.target.reset();
+            } catch (e) {
+                console.error("Error adding task: ", e);
+            }
         }
     };
 
@@ -603,70 +681,40 @@ export default function App() {
     const [isAuthReady, setIsAuthReady] = useState(false);
 
     // --- Data State ---
-    const [totalBudget, setTotalBudget] = useState(() => {
-        const saved = localStorage.getItem('wedding-planner-total-budget');
-        return saved ? parseFloat(saved) : 100000;
-    });
-    const [guests, setGuests] = useState(() => {
-        const saved = localStorage.getItem('wedding-planner-guests');
-        return saved ? JSON.parse(saved) : [];
-    });
-    const [budgetItems, setBudgetItems] = useState(() => {
-        const saved = localStorage.getItem('wedding-planner-budget-items');
-        return saved ? JSON.parse(saved) : [];
-    });
-    const [vendors, setVendors] = useState(() => {
-        const saved = localStorage.getItem('wedding-planner-vendors');
-        return saved ? JSON.parse(saved) : [];
-    });
-    const [tasks, setTasks] = useState(() => {
-        const saved = localStorage.getItem('wedding-planner-tasks');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [totalBudget, setTotalBudget] = useState(100000);
+    const [guests, setGuests] = useState([]);
+    const [budgetItems, setBudgetItems] = useState([]);
+    const [vendors, setVendors] = useState([]);
+    const [tasks, setTasks] = useState([]);
 
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
-        console.log("Initializing Firebase...");
         if (!firebaseConfig.apiKey) {
             console.error("Firebase config is missing!");
             return;
         }
 
-        const app = initializeApp(firebaseConfig);
         const authInstance = getAuth(app);
         const dbInstance = getFirestore(app);
 
         setAuth(authInstance);
         setDb(dbInstance);
 
-        console.log("Firebase initialized, setting up auth listener...");
-
-        // For local development, skip auth and use local storage instead
-        setBasePath('local');
-        setIsAuthReady(true);
-        console.log("Local dev mode: Using local storage for data persistence");
-
-        // Uncomment below for production auth
-        /*
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
-            console.log("Auth state changed:", user ? `User signed in: ${user.uid}` : "No user signed in");
             if (user) {
                 // User is signed in
                 setUserId(user.uid);
                 // We'll use a simpler path for your personal database
                 setBasePath(`/users/${user.uid}`);
                 setIsAuthReady(true);
-                console.log("Auth ready, setting isAuthReady to true");
             } else {
                 // User is signed out, attempt to sign in
-                console.log("Attempting anonymous sign-in...");
                 try {
                     // When running locally, we don't have a custom token.
                     // Just sign in anonymously.
                     await signInAnonymously(authInstance);
-                    console.log("Anonymous sign-in successful");
                 } catch (error) {
-                    console.error("Error signing in anonymously: ", error);
+                    console.error("Error signing in: ", error);
                     setIsAuthReady(false); // Auth failed
                 }
             }
@@ -674,30 +722,66 @@ export default function App() {
 
         // Cleanup auth listener on component unmount
         return () => unsubscribe();
-        */
-
     }, []); // Run only once
 
-    // --- 2. Save data to localStorage whenever state changes ---
+    // --- 2. Listen to Firestore Data ---
     useEffect(() => {
-        localStorage.setItem('wedding-planner-total-budget', totalBudget.toString());
-    }, [totalBudget]);
+        // Only run if auth is ready and we have a db instance and user path
+        if (!isAuthReady || !db || !basePath) return;
 
-    useEffect(() => {
-        localStorage.setItem('wedding-planner-guests', JSON.stringify(guests));
-    }, [guests]);
+        console.log(`Setting up listeners for user path: ${basePath}`);
 
-    useEffect(() => {
-        localStorage.setItem('wedding-planner-budget-items', JSON.stringify(budgetItems));
-    }, [budgetItems]);
+        // Listen to Guests
+        const guestsQuery = query(collection(db, `${basePath}/guests`));
+        const unsubGuests = onSnapshot(guestsQuery, (querySnapshot) => {
+            const guestData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setGuests(guestData);
+        }, (error) => console.error("Error listening to guests: ", error));
 
-    useEffect(() => {
-        localStorage.setItem('wedding-planner-vendors', JSON.stringify(vendors));
-    }, [vendors]);
+        // Listen to Budget Items
+        const budgetQuery = query(collection(db, `${basePath}/budgetItems`));
+        const unsubBudgetItems = onSnapshot(budgetQuery, (querySnapshot) => {
+            const budgetData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setBudgetItems(budgetData);
+        }, (error) => console.error("Error listening to budget items: ", error));
 
-    useEffect(() => {
-        localStorage.setItem('wedding-planner-tasks', JSON.stringify(tasks));
-    }, [tasks]);
+        // Listen to Vendors
+        const vendorsQuery = query(collection(db, `${basePath}/vendors`));
+        const unsubVendors = onSnapshot(vendorsQuery, (querySnapshot) => {
+            const vendorData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setVendors(vendorData);
+        }, (error) => console.error("Error listening to vendors: ", error));
+
+        // Listen to Tasks
+        const tasksQuery = query(collection(db, `${basePath}/tasks`));
+        const unsubTasks = onSnapshot(tasksQuery, (querySnapshot) => {
+            const taskData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort tasks by timeline order
+            taskData.sort((a, b) => timelineOrder.indexOf(a.timeline) - timelineOrder.indexOf(b.timeline));
+            setTasks(taskData);
+        }, (error) => console.error("Error listening to tasks: ", error));
+
+        // Listen to Total Budget
+        const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
+        const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
+            if (docSnap.exists()) {
+                setTotalBudget(docSnap.data().amount || 100000);
+            } else {
+                // If doc doesn't exist, set default
+                setTotalBudget(100000);
+            }
+        }, (error) => console.error("Error listening to total budget: ", error));
+
+        // Cleanup all listeners on component unmount or when path changes
+        return () => {
+            unsubGuests();
+            unsubBudgetItems();
+            unsubVendors();
+            unsubTasks();
+            unsubTotalBudget();
+        };
+
+    }, [isAuthReady, db, basePath]); // Rerun if auth/db changes
 
     
     // --- Props for children ---
@@ -709,11 +793,6 @@ export default function App() {
         tasks,
         totalBudget,
         setCurrentView,
-        setGuests,
-        setBudgetItems,
-        setVendors,
-        setTasks,
-        setTotalBudget,
         db, // Pass db and basePath for writing data
         basePath
     };
@@ -728,6 +807,7 @@ export default function App() {
             case 'dashboard':
                 return <Dashboard {...pageProps} />;
             case 'guestlist':
+                // --- THIS IS THE FIX ---
                 return <GuestList {...pageProps} />;
             case 'budget':
                 return <Budget {...pageProps} />;
