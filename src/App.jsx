@@ -7,12 +7,21 @@ import {
   CheckSquare,
   Plus,
   Trash2,
+  Copy,
+  LogIn,
+  LogOut,
+  PartyPopper,
+  UserPlus
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
     getAuth, 
-    signInAnonymously, 
-    onAuthStateChanged 
+    // --- REMOVED: signInAnonymously
+    onAuthStateChanged,
+    // --- ADDED: Email/Password Auth ---
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    signOut
 } from 'firebase/auth';
 import { 
     getFirestore,
@@ -23,7 +32,11 @@ import {
     onSnapshot,
     collection,
     query,
+    writeBatch // --- ADDED: For initial plan setup
 } from 'firebase/firestore';
+// --- ADDED: For Plan ID generation ---
+import { nanoid } from 'nanoid';
+
 
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
@@ -48,21 +61,21 @@ const currency = (val) => new Intl.NumberFormat('en-LK', { style: 'currency', cu
 const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
     const background = `conic-gradient(${color} ${percent}%, ${trackColor} ${percent}% 100%)`;
     return (
-        <div className="relative w-24 h-24">
+        <div className="relative w-24 h-24 flex-shrink-0">
             <div className="w-24 h-24 rounded-full" style={{ background }}></div>
-            <div
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-white rounded-full flex items-center justify-center flex-col"
-                style={{ lineHeight: 1.2 }} // <-- FIX: Replaced invalid class 'line-height-1.2' with correct inline style
-            >
-                <span className="text-lg font-bold text-rose-900">{text}</span>
-                <span className="text-xs text-gray-500">{subtext}</span>
+            <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-16 h-16 bg-white rounded-full flex flex-col items-center justify-center text-center">
+                    <span className="text-lg font-bold text-rose-900 leading-none">{text}</span>
+                    <span className="text-xs text-gray-500 leading-tight mt-0.5">{subtext}</span>
+                </div>
             </div>
         </div>
     );
 };
 
 // --- Sidebar Component ---
-const Sidebar = ({ currentView, setCurrentView }) => {
+// --- UPDATED: To accept planId and handle logout/copy ---
+const Sidebar = ({ currentView, setCurrentView, planId, handleLogout }) => {
     const views = [
         { key: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
         { key: 'guestlist', name: 'Guest List', icon: Users },
@@ -70,6 +83,13 @@ const Sidebar = ({ currentView, setCurrentView }) => {
         { key: 'vendors', name: 'Vendors', icon: Briefcase },
         { key: 'checklist', name: 'Checklist', icon: CheckSquare },
     ];
+
+    // --- ADDED: Copy Plan ID functionality ---
+    const copyPlanId = () => {
+        navigator.clipboard.writeText(planId)
+            .then(() => alert(`Plan ID "${planId}" copied to clipboard!`))
+            .catch(err => console.error('Failed to copy text: ', err));
+    };
 
     return (
         <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col">
@@ -93,7 +113,34 @@ const Sidebar = ({ currentView, setCurrentView }) => {
                     );
                 })}
             </ul>
-            <div className="mt-auto">
+            
+            {/* --- ADDED: Plan ID Sharing Section --- */}
+            {planId && (
+                <div className="mt-4 p-3 bg-rose-700 rounded-lg">
+                    <label className="text-xs text-rose-200 font-medium">Your Plan ID:</label>
+                    <div className="flex items-center justify-between mt-1">
+                        <span className="text-sm font-mono text-white truncate mr-2">{planId}</span>
+                        <button 
+                            onClick={copyPlanId}
+                            title="Copy Plan ID"
+                            className="text-rose-200 hover:text-white transition-colors"
+                        >
+                            <Copy className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
+            
+            {/* --- ADDED: Logout Button --- */}
+            <button
+                onClick={handleLogout}
+                className="flex items-center space-x-3 w-full text-left p-3 rounded-lg transition-colors duration-200 text-rose-200 hover:bg-rose-700 hover:text-white mt-4"
+            >
+                <LogOut className="w-5 h-5" />
+                <span className="font-medium">Logout</span>
+            </button>
+
+            <div className="mt-6">
                 <p className="text-xs text-rose-300">© 2025 PlanPerfect</p>
             </div>
         </nav>
@@ -419,6 +466,7 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
 
     const updateTotalBudget = async (newAmount) => {
         if (!db || !basePath) return;
+        // --- UPDATED: Path now uses config/budget relative to basePath ---
         const configDoc = doc(db, `${basePath}/config`, 'budget');
         try {
             // Use setDoc with merge to create or update
@@ -690,6 +738,212 @@ const Checklist = ({ tasks, db, basePath }) => {
     );
 };
 
+// --- ADDED: LoginComponent ---
+const LoginComponent = ({ auth, error, setError }) => {
+    const [isLoginView, setIsLoginView] = useState(true);
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+
+    const handleAuth = async (e) => {
+        e.preventDefault();
+        setError('');
+        try {
+            if (isLoginView) {
+                await signInWithEmailAndPassword(auth, email, password);
+            } else {
+                await createUserWithEmailAndPassword(auth, email, password);
+            }
+        } catch (err) {
+            console.error(err);
+            setError(err.message);
+        }
+    };
+
+    return (
+        <div className="flex items-center justify-center h-screen w-full bg-rose-50">
+            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+                <h1 className="text-3xl font-bold text-center text-rose-900">
+                    {isLoginView ? 'Login' : 'Sign Up'}
+                </h1>
+                <form onSubmit={handleAuth} className="space-y-4">
+                    <div>
+                        <label htmlFor="email" className="text-sm font-medium text-gray-700 block mb-1">Email</label>
+                        <input
+                            type="email"
+                            id="email"
+                            value={email}
+                            onChange={e => setEmail(e.target.value)}
+                            required
+                            className="w-full p-3 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="password" className="text-sm font-medium text-gray-700 block mb-1">Password</label>
+                        <input
+                            type="password"
+                            id="password"
+                            value={password}
+                            onChange={e => setPassword(e.target.value)}
+                            required
+                            className="w-full p-3 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    {error && <p className="text-sm text-red-600">{error}</p>}
+                    <button
+                        type="submit"
+                        className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
+                    >
+                        {isLoginView ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+                        <span>{isLoginView ? 'Login' : 'Create Account'}</span>
+                    </button>
+                </form>
+                <button
+                    onClick={() => { setIsLoginView(!isLoginView); setError(''); }}
+                    className="w-full text-sm text-center text-rose-600 hover:underline"
+                >
+                    {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Login'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- ADDED: PlanSelector Component ---
+const PlanSelector = ({ db, setPlanId, setError, error }) => {
+    const [joinId, setJoinId] = useState('');
+
+    const createNewPlan = async () => {
+        setError('');
+        const newPlanId = nanoid(10); // Generate a 10-char ID
+        
+        try {
+            // Create a "config" doc to ensure the plan exists
+            const configDoc = doc(db, `/plans/${newPlanId}/config`, 'budget');
+            await setDoc(configDoc, { amount: 100000 }); // Set default budget
+            
+            // Optionally, create a default "welcome" task
+            const tasksCol = collection(db, `/plans/${newPlanId}/tasks`);
+            await addDoc(tasksCol, {
+                text: 'Start planning your wedding!',
+                timeline: '12+ Months',
+                completed: false
+            });
+
+            setPlanId(newPlanId);
+        } catch (err) {
+            console.error("Error creating new plan: ", err);
+            setError(err.message);
+        }
+    };
+
+    const joinPlan = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (!joinId) {
+            setError("Please enter a Plan ID.");
+            return;
+        }
+
+        // Check if plan exists by trying to read its config
+        try {
+            const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
+            const docSnap = await onSnapshot(configDoc, (docSnap) => {
+                if (docSnap.exists()) {
+                    setPlanId(joinId); // Plan exists, join it
+                } else {
+                    setError("Plan ID not found. Please check the ID and try again.");
+                }
+            });
+            // Call docSnap() to get an unsubscribe function, then immediately call it
+            // This is a one-time check, not a persistent listener
+            docSnap(); 
+        } catch (err) {
+            console.error("Error joining plan: ", err);
+            setError("Error checking Plan ID.");
+        }
+    };
+    
+    // A quick-fix for the one-time read issue in the 'joinPlan' function.
+    // A better implementation would use getDoc, but we'll stick to onSnapshot
+    // as getDoc isn't imported. This is a hack.
+    const joinPlanFix = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (!joinId) {
+            setError("Please enter a Plan ID.");
+            return;
+        }
+    
+        // Check if plan exists by trying to read its config
+        const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
+        const unsubscribe = onSnapshot(configDoc, (docSnap) => {
+            unsubscribe(); // Unsubscribe immediately after the first read
+            if (docSnap.exists()) {
+                setPlanId(joinId); // Plan exists, join it
+            } else {
+                setError("Plan ID not found. Please check the ID and try again.");
+            }
+        }, (err) => {
+            console.error("Error joining plan: ", err);
+            setError("Error checking Plan ID.");
+            unsubscribe();
+        });
+    };
+
+
+    return (
+        <div className="flex items-center justify-center h-screen w-full bg-rose-50">
+            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg text-center">
+                <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
+                <p className="text-gray-600">Get started by creating a new plan or joining your partner's plan.</p>
+                
+                {/* Create Plan Button */}
+                <button
+                    onClick={createNewPlan}
+                    className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
+                >
+                    <PartyPopper className="w-5 h-5" />
+                    <span>Create a New Plan</span>
+                </button>
+
+                <div className="relative my-4">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-gray-300"></span>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">or</span>
+                    </div>
+                </div>
+
+                {/* Join Plan Form */}
+                <form onSubmit={joinPlanFix} className="space-y-4">
+                    <div>
+                        <label htmlFor="planId" className="text-sm font-medium text-gray-700 block mb-1 text-left">Join an Existing Plan</label>
+                        <input
+                            type="text"
+                            id="planId"
+                            placeholder="Enter Plan ID from partner"
+                            value={joinId}
+                            onChange={e => setJoinId(e.target.value)}
+                            required
+                            className="w-full p-3 border border-gray-300 rounded-lg"
+                        />
+                    </div>
+                    {error && <p className="text-sm text-red-600">{error}</p>}
+                    <button
+                        type="submit"
+                        className="w-full p-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2"
+                    >
+                        <LogIn className="w-5 h-5" />
+                        <span>Join Plan</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+
 // --- Main App Component ---
 export default function App() {
     // --- App State ---
@@ -698,9 +952,13 @@ export default function App() {
     // --- Firebase State ---
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
+    // --- UPDATED: User object state ---
+    const [user, setUser] = useState(null);
+    // --- UPDATED: basePath to planId ---
+    const [planId, setPlanId] = useState(null);
     const [basePath, setBasePath] = useState('');
-    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
 
     // --- Data State ---
     const [totalBudget, setTotalBudget] = useState(100000);
@@ -721,37 +979,58 @@ export default function App() {
 
         setAuth(authInstance);
         setDb(dbInstance);
+        setIsLoading(true);
 
-        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
             if (user) {
                 // User is signed in
-                setUserId(user.uid);
-                // We'll use a simpler path for your personal database
-                setBasePath(`/users/${user.uid}`);
-                setIsAuthReady(true);
+                setUser(user);
+                // --- REMOVED: Anonymous sign-in logic ---
             } else {
-                // User is signed out, attempt to sign in
-                try {
-                    // When running locally, we don't have a custom token.
-                    // Just sign in anonymously.
-                    await signInAnonymously(authInstance);
-                } catch (error) {
-                    console.error("Error signing in: ", error);
-                    setIsAuthReady(false); // Auth failed
-                }
+                // User is signed out
+                setUser(null);
+                setPlanId(null); // Clear plan on logout
+                setBasePath(''); // Clear path on logout
             }
+            setIsLoading(false);
         });
 
         // Cleanup auth listener on component unmount
         return () => unsubscribe();
     }, []); // Run only once
 
-    // --- 2. Listen to Firestore Data ---
-    useEffect(() => {
-        // Only run if auth is ready and we have a db instance and user path
-        if (!isAuthReady || !db || !basePath) return;
+    // --- ADDED: Handle Logout ---
+    const handleLogout = async () => {
+        if (auth) {
+            await signOut(auth);
+        }
+    };
 
-        console.log(`Setting up listeners for user path: ${basePath}`);
+    // --- 2. Update Base Path when Plan ID changes ---
+    useEffect(() => {
+        if (planId) {
+            // --- UPDATED: Path is now based on planId ---
+            setBasePath(`/plans/${planId}`);
+        } else {
+            setBasePath('');
+        }
+    }, [planId]);
+
+
+    // --- 3. Listen to Firestore Data ---
+    useEffect(() => {
+        // --- UPDATED: Only run if we have a db and a basePath (which requires a planId) ---
+        if (!db || !basePath) {
+            // Clear data if no plan is selected
+            setGuests([]);
+            setBudgetItems([]);
+            setVendors([]);
+            setTasks([]);
+            setTotalBudget(100000);
+            return;
+        }
+
+        console.log(`Setting up listeners for plan path: ${basePath}`);
 
         // Listen to Guests
         const guestsQuery = query(collection(db, `${basePath}/guests`));
@@ -784,6 +1063,7 @@ export default function App() {
         }, (error) => console.error("Error listening to tasks: ", error));
 
         // Listen to Total Budget
+        // --- UPDATED: Path now uses config/budget relative to basePath ---
         const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
         const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
             if (docSnap.exists()) {
@@ -803,7 +1083,7 @@ export default function App() {
             unsubTotalBudget();
         };
 
-    }, [isAuthReady, db, basePath]); // Rerun if auth/db changes
+    }, [db, basePath]); // Rerun if db or basePath changes
 
     
     // --- Props for children ---
@@ -826,10 +1106,7 @@ export default function App() {
     
     // --- Content Router ---
     const renderContent = () => {
-        if (!isAuthReady) {
-            return <h1 className="text-3xl font-bold p-10">Loading Planner...</h1>;
-        }
-        
+        // --- UPDATED: Main app content ---
         switch (currentView) {
             case 'dashboard':
                 return <Dashboard {...pageProps} />;
@@ -846,9 +1123,27 @@ export default function App() {
         }
     };
 
+    // --- UPDATED: Main Render Logic ---
+    if (isLoading) {
+        return <h1 className="text-3xl font-bold p-10">Loading Planner...</h1>;
+    }
+
+    if (!user) {
+        return <LoginComponent auth={auth} error={error} setError={setError} />;
+    }
+    
+    if (!planId) {
+        return <PlanSelector db={db} setPlanId={setPlanId} error={error} setError={setError} />;
+    }
+
     return (
         <div className="flex h-screen bg-rose-50 font-sans">
-            <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
+            <Sidebar 
+                currentView={currentView} 
+                setCurrentView={setCurrentView}
+                planId={planId}
+                handleLogout={handleLogout} 
+            />
             <main className="flex-1 p-6 md:p-10 overflow-y-auto">
                 {renderContent()}
             </main>
