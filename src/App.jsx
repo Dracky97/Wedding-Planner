@@ -35,8 +35,10 @@ import {
 // const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 // const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
 
-// --- YOUR FIREBASE CONFIG ---
-// Paste your Firebase config object here
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAJ9wBW6ao4CBP-YCxt1GXlvwA8CXHQFaE",
   authDomain: "my-wedding-app-39f14.firebaseapp.com",
@@ -45,10 +47,12 @@ const firebaseConfig = {
   messagingSenderId: "630903724575",
   appId: "1:630903724575:web:b9aa188aa01baa50f6932a"
 };
-// --- END YOUR FIREBASE CONFIG ---
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
 const timelineOrder = ['12+ Months', '10-12 Months', '8-10 Months', '6-8 Months', '4-6 Months', '2-3 Months', '1-2 Months', '2-4 Weeks', '1 Week'];
-const currency = (val) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 }).format(val);
+const currency = (val) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(val);
 
 // --- Reusable Doughnut Chart Component ---
 const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
@@ -228,41 +232,29 @@ const GuestList = ({ guests, db, basePath }) => {
     const mealOptions = ['Beef', 'Chicken', 'Vegan', 'Kids'];
 
     const addGuest = async () => {
-        const newGuest = { 
-            name: 'New Guest', 
-            phone: '', 
-            tag: 'Other', 
-            invited: false, 
-            rsvp: null, 
-            numPeople: 1, 
-            rehearsal: false, 
-            farewell: false, 
-            meal: null 
+        const newGuest = {
+            id: Date.now().toString(),
+            name: 'New Guest',
+            phone: '',
+            tag: 'Other',
+            invited: false,
+            rsvp: null,
+            numPeople: 1,
+            rehearsal: false,
+            farewell: false,
+            meal: null
         };
-        const guestsCol = collection(db, `${basePath}/guests`);
-        try {
-            await addDoc(guestsCol, newGuest);
-        } catch (e) {
-            console.error("Error adding guest: ", e);
-        }
+        setGuests(prev => [...prev, newGuest]);
     };
 
     const updateGuest = async (id, field, value) => {
-        const guestDoc = doc(db, `${basePath}/guests`, id);
-        try {
-            await setDoc(guestDoc, { [field]: value }, { merge: true });
-        } catch (e) {
-            console.error("Error updating guest: ", e);
-        }
+        setGuests(prev => prev.map(guest =>
+            guest.id === id ? { ...guest, [field]: value } : guest
+        ));
     };
 
     const deleteGuest = async (id) => {
-        const guestDoc = doc(db, `${basePath}/guests`, id);
-        try {
-            await deleteDoc(guestDoc);
-        } catch (e) {
-            console.error("Error deleting guest: ", e);
-        }
+        setGuests(prev => prev.filter(guest => guest.id !== id));
     };
 
     return (
@@ -344,41 +336,22 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
     }, [budgetItems, totalBudget]);
     
     const addBudgetItem = async () => {
-        const newItem = { type: 'New Item', category: 'Other', cost: 0, paid: 0 };
-        const itemsCol = collection(db, `${basePath}/budgetItems`);
-        try {
-            await addDoc(itemsCol, newItem);
-        } catch (e) {
-            console.error("Error adding budget item: ", e);
-        }
+        const newItem = { id: Date.now().toString(), type: 'New Item', category: 'Other', cost: 0, paid: 0 };
+        setBudgetItems(prev => [...prev, newItem]);
     };
 
     const updateBudgetItem = async (id, field, value) => {
-        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
-        try {
-            await setDoc(itemDoc, { [field]: value }, { merge: true });
-        } catch (e) {
-            console.error("Error updating budget item: ", e);
-        }
+        setBudgetItems(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
     };
 
     const deleteBudgetItem = async (id) => {
-        const itemDoc = doc(db, `${basePath}/budgetItems`, id);
-        try {
-            await deleteDoc(itemDoc);
-        } catch (e) {
-            console.error("Error deleting budget item: ", e);
-        }
+        setBudgetItems(prev => prev.filter(item => item.id !== id));
     };
 
     const updateTotalBudget = async (newAmount) => {
-        const configDoc = doc(db, `${basePath}/config`, 'budget');
-        try {
-            // Use setDoc with merge to create or update
-            await setDoc(configDoc, { amount: newAmount }, { merge: true });
-        } catch (e) {
-            console.error("Error updating total budget: ", e);
-        }
+        setTotalBudget(newAmount);
     };
 
     return (
@@ -467,31 +440,18 @@ const Vendors = ({ vendors, db, basePath }) => {
     const vendorTypes = ['Venue', 'Caterer', 'Photographer', 'Videographer', 'Florist', 'Band/DJ', 'Other'];
 
     const addVendor = async () => {
-        const newVendor = { type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
-        const vendorsCol = collection(db, `${basePath}/vendors`);
-        try {
-            await addDoc(vendorsCol, newVendor);
-        } catch (e) {
-            console.error("Error adding vendor: ", e);
-        }
+        const newVendor = { id: Date.now().toString(), type: 'Other', name: 'New Vendor', contact: '', email: '', packageNum: 1 };
+        setVendors(prev => [...prev, newVendor]);
     };
 
     const updateVendor = async (id, field, value) => {
-        const vendorDoc = doc(db, `${basePath}/vendors`, id);
-        try {
-            await setDoc(vendorDoc, { [field]: value }, { merge: true });
-        } catch (e) {
-            console.error("Error updating vendor: ", e);
-        }
+        setVendors(prev => prev.map(vendor =>
+            vendor.id === id ? { ...vendor, [field]: value } : vendor
+        ));
     };
 
     const deleteVendor = async (id) => {
-        const vendorDoc = doc(db, `${basePath}/vendors`, id);
-        try {
-            await deleteDoc(vendorDoc);
-        } catch (e) {
-            console.error("Error deleting vendor: ", e);
-        }
+        setVendors(prev => prev.filter(vendor => vendor.id !== id));
     };
     
     return (
@@ -561,28 +521,20 @@ const Checklist = ({ tasks, db, basePath }) => {
     }, [tasks]);
 
     const toggleTask = async (id, currentStatus) => {
-        const taskDoc = doc(db, `${basePath}/tasks`, id);
-        try {
-            await setDoc(taskDoc, { completed: !currentStatus }, { merge: true });
-        } catch (e) {
-            console.error("Error toggling task: ", e);
-        }
+        setTasks(prev => prev.map(task =>
+            task.id === id ? { ...task, completed: !currentStatus } : task
+        ));
     };
-    
+
     const addTask = async (event) => {
         event.preventDefault();
         const text = event.target.elements['new-task-text'].value;
         const timeline = event.target.elements['new-task-timeline'].value;
-        
+
         if (text) {
-            const newTask = { text, timeline, completed: false };
-            const tasksCol = collection(db, `${basePath}/tasks`);
-            try {
-                await addDoc(tasksCol, newTask);
-                event.target.reset();
-            } catch (e) {
-                console.error("Error adding task: ", e);
-            }
+            const newTask = { id: Date.now().toString(), text, timeline, completed: false };
+            setTasks(prev => [...prev, newTask]);
+            event.target.reset();
         }
     };
 
@@ -651,14 +603,30 @@ export default function App() {
     const [isAuthReady, setIsAuthReady] = useState(false);
 
     // --- Data State ---
-    const [totalBudget, setTotalBudget] = useState(100000);
-    const [guests, setGuests] = useState([]);
-    const [budgetItems, setBudgetItems] = useState([]);
-    const [vendors, setVendors] = useState([]);
-    const [tasks, setTasks] = useState([]);
+    const [totalBudget, setTotalBudget] = useState(() => {
+        const saved = localStorage.getItem('wedding-planner-total-budget');
+        return saved ? parseFloat(saved) : 100000;
+    });
+    const [guests, setGuests] = useState(() => {
+        const saved = localStorage.getItem('wedding-planner-guests');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [budgetItems, setBudgetItems] = useState(() => {
+        const saved = localStorage.getItem('wedding-planner-budget-items');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [vendors, setVendors] = useState(() => {
+        const saved = localStorage.getItem('wedding-planner-vendors');
+        return saved ? JSON.parse(saved) : [];
+    });
+    const [tasks, setTasks] = useState(() => {
+        const saved = localStorage.getItem('wedding-planner-tasks');
+        return saved ? JSON.parse(saved) : [];
+    });
 
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
+        console.log("Initializing Firebase...");
         if (!firebaseConfig.apiKey) {
             console.error("Firebase config is missing!");
             return;
@@ -671,21 +639,34 @@ export default function App() {
         setAuth(authInstance);
         setDb(dbInstance);
 
+        console.log("Firebase initialized, setting up auth listener...");
+
+        // For local development, skip auth and use local storage instead
+        setBasePath('local');
+        setIsAuthReady(true);
+        console.log("Local dev mode: Using local storage for data persistence");
+
+        // Uncomment below for production auth
+        /*
         const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
+            console.log("Auth state changed:", user ? `User signed in: ${user.uid}` : "No user signed in");
             if (user) {
                 // User is signed in
                 setUserId(user.uid);
                 // We'll use a simpler path for your personal database
                 setBasePath(`/users/${user.uid}`);
                 setIsAuthReady(true);
+                console.log("Auth ready, setting isAuthReady to true");
             } else {
                 // User is signed out, attempt to sign in
+                console.log("Attempting anonymous sign-in...");
                 try {
                     // When running locally, we don't have a custom token.
                     // Just sign in anonymously.
                     await signInAnonymously(authInstance);
+                    console.log("Anonymous sign-in successful");
                 } catch (error) {
-                    console.error("Error signing in: ", error);
+                    console.error("Error signing in anonymously: ", error);
                     setIsAuthReady(false); // Auth failed
                 }
             }
@@ -693,66 +674,30 @@ export default function App() {
 
         // Cleanup auth listener on component unmount
         return () => unsubscribe();
+        */
+
     }, []); // Run only once
 
-    // --- 2. Listen to Firestore Data ---
+    // --- 2. Save data to localStorage whenever state changes ---
     useEffect(() => {
-        // Only run if auth is ready and we have a db instance and user path
-        if (!isAuthReady || !db || !basePath) return;
+        localStorage.setItem('wedding-planner-total-budget', totalBudget.toString());
+    }, [totalBudget]);
 
-        console.log(`Setting up listeners for user path: ${basePath}`);
+    useEffect(() => {
+        localStorage.setItem('wedding-planner-guests', JSON.stringify(guests));
+    }, [guests]);
 
-        // Listen to Guests
-        const guestsQuery = query(collection(db, `${basePath}/guests`));
-        const unsubGuests = onSnapshot(guestsQuery, (querySnapshot) => {
-            const guestData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setGuests(guestData);
-        }, (error) => console.error("Error listening to guests: ", error));
+    useEffect(() => {
+        localStorage.setItem('wedding-planner-budget-items', JSON.stringify(budgetItems));
+    }, [budgetItems]);
 
-        // Listen to Budget Items
-        const budgetQuery = query(collection(db, `${basePath}/budgetItems`));
-        const unsubBudgetItems = onSnapshot(budgetQuery, (querySnapshot) => {
-            const budgetData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setBudgetItems(budgetData);
-        }, (error) => console.error("Error listening to budget items: ", error));
+    useEffect(() => {
+        localStorage.setItem('wedding-planner-vendors', JSON.stringify(vendors));
+    }, [vendors]);
 
-        // Listen to Vendors
-        const vendorsQuery = query(collection(db, `${basePath}/vendors`));
-        const unsubVendors = onSnapshot(vendorsQuery, (querySnapshot) => {
-            const vendorData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setVendors(vendorData);
-        }, (error) => console.error("Error listening to vendors: ", error));
-
-        // Listen to Tasks
-        const tasksQuery = query(collection(db, `${basePath}/tasks`));
-        const unsubTasks = onSnapshot(tasksQuery, (querySnapshot) => {
-            const taskData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Sort tasks by timeline order
-            taskData.sort((a, b) => timelineOrder.indexOf(a.timeline) - timelineOrder.indexOf(b.timeline));
-            setTasks(taskData);
-        }, (error) => console.error("Error listening to tasks: ", error));
-
-        // Listen to Total Budget
-        const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
-        const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
-            if (docSnap.exists()) {
-                setTotalBudget(docSnap.data().amount || 100000);
-            } else {
-                // If doc doesn't exist, set default and maybe create it
-                setTotalBudget(100000);
-            }
-        }, (error) => console.error("Error listening to total budget: ", error));
-
-        // Cleanup all listeners on component unmount or when path changes
-        return () => {
-            unsubGuests();
-            unsubBudgetItems();
-            unsubVendors();
-            unsubTasks();
-            unsubTotalBudget();
-        };
-
-    }, [isAuthReady, db, basePath]); // Rerun if auth/db changes
+    useEffect(() => {
+        localStorage.setItem('wedding-planner-tasks', JSON.stringify(tasks));
+    }, [tasks]);
 
     
     // --- Props for children ---
@@ -764,6 +709,11 @@ export default function App() {
         tasks,
         totalBudget,
         setCurrentView,
+        setGuests,
+        setBudgetItems,
+        setVendors,
+        setTasks,
+        setTotalBudget,
         db, // Pass db and basePath for writing data
         basePath
     };
