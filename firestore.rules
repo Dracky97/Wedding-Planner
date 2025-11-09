@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // This rule allows any authenticated user (request.auth != null)
+    // to read and write to any document within a plan.
+    match /plans/{planId}/{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

@@ -11,7 +11,13 @@ import {
   LogIn,
   LogOut,
   PartyPopper,
-  UserPlus
+  UserPlus,
+  Menu, // ADDED: For mobile menu
+  X, // ADDED: For mobile menu close
+  ListTodo, // ADDED: For Agenda
+  Folder, // ADDED: For Documents tab
+  UploadCloud, // ADDED: For new component
+  FileText, // ADDED: For new component
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { 
@@ -34,6 +40,14 @@ import {
     query,
     writeBatch // --- ADDED: For initial plan setup
 } from 'firebase/firestore';
+// --- ADDED: Firebase Storage ---
+import { 
+    getStorage, 
+    ref, 
+    uploadBytesResumable, 
+    getDownloadURL, 
+    deleteObject 
+} from "firebase/storage";
 // --- ADDED: For Plan ID generation ---
 import { nanoid } from 'nanoid';
 
@@ -57,6 +71,19 @@ const timelineOrder = ['12+ Months', '10-12 Months', '8-10 Months', '6-8 Months'
 // --- Currency Updated to LKR ---
 const currency = (val) => new Intl.NumberFormat('en-LK', { style: 'currency', currency: 'LKR', minimumFractionDigits: 2 }).format(val);
 
+// --- ADDED: Notification Component ---
+const Notification = ({ message }) => {
+    if (!message) return null;
+
+    return (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in-out">
+            {message}
+            {/* We can add a simple fade animation with Tailwind config, but for now, it just appears and disappears */}
+            {/* Or add a keyframe animation in index.html's <style> tag if needed */}
+        </div>
+    );
+};
+
 // --- Reusable Doughnut Chart Component ---
 const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
     const background = `conic-gradient(${color} ${percent}%, ${trackColor} ${percent}% 100%)`;
@@ -75,24 +102,49 @@ const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
 
 // --- Sidebar Component ---
 // --- UPDATED: To accept planId and handle logout/copy ---
-const Sidebar = ({ currentView, setCurrentView, planId, handleLogout }) => {
+// UPDATED: Now accepts mobile menu state handlers
+const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMenuOpen, setIsMobileMenuOpen, showNotification }) => {
     const views = [
         { key: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
         { key: 'guestlist', name: 'Guest List', icon: Users },
         { key: 'budget', name: 'Budget', icon: PiggyBank },
         { key: 'vendors', name: 'Vendors', icon: Briefcase },
         { key: 'checklist', name: 'Checklist', icon: CheckSquare },
+        { key: 'agenda', name: 'Agenda', icon: ListTodo }, // ADDED: Agenda nav item
+        { key: 'documents', name: 'Documents', icon: Folder }, // ADDED: Documents tab
     ];
 
-    // --- ADDED: Copy Plan ID functionality ---
+    // --- UPDATED: Copy Plan ID functionality ---
     const copyPlanId = () => {
+        if (!navigator.clipboard) {
+            // Fallback for insecure contexts
+            try {
+                const textArea = document.createElement("textarea");
+                textArea.value = planId;
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification(`Plan ID "${planId}" copied to clipboard!`);
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                showNotification(`Failed to copy. Please copy manually.`);
+            }
+            return;
+        }
+
         navigator.clipboard.writeText(planId)
-            .then(() => alert(`Plan ID "${planId}" copied to clipboard!`))
-            .catch(err => console.error('Failed to copy text: ', err));
+            .then(() => showNotification(`Plan ID "${planId}" copied to clipboard!`))
+            .catch(err => {
+                console.error('Failed to copy text: ', err);
+                showNotification(`Failed to copy. Please copy manually.`);
+            });
     };
 
-    return (
-        <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col">
+    // This is the content for the sidebar, reused in desktop and mobile
+    const sidebarContent = (
+        <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col h-full">
             <h1 className="text-3xl font-bold mb-8 text-rose-100">Wedding Planner</h1>
             <ul className="space-y-3 flex-1">
                 {views.map(view => {
@@ -101,7 +153,10 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout }) => {
                     return (
                         <li key={view.key}>
                             <button
-                                onClick={() => setCurrentView(view.key)}
+                                onClick={() => {
+                                    setCurrentView(view.key);
+                                    setIsMobileMenuOpen(false); // Close menu on navigation
+                                }}
                                 className={`flex items-center space-x-3 w-full text-left p-3 rounded-lg transition-colors duration-200 ${
                                     isActive ? 'bg-rose-900 text-white' : 'text-rose-200 hover:bg-rose-700 hover:text-white'
                                 }`}
@@ -145,7 +200,65 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout }) => {
             </div>
         </nav>
     );
+
+    return (
+        <>
+            {/* --- Desktop Sidebar --- */}
+            {/* Hides on small screens, shows on medium and up */}
+            <div className="hidden md:flex h-screen flex-shrink-0">
+                {sidebarContent}
+            </div>
+
+            {/* --- Mobile Menu (Modal) --- */}
+            {isMobileMenuOpen && (
+                <div className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true">
+                    {/* Overlay */}
+                    <div 
+                        className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
+                        aria-hidden="true"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    ></div>
+
+                    {/* Sidebar Content */}
+                    <div className="relative flex-shrink-0 transition-transform duration-300 ease-in-out">
+                        {sidebarContent}
+                    </div>
+                    
+                    {/* Close Button */}
+                    <button 
+                        className="absolute top-4 right-4 text-white"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                </div>
+            )}
+        </>
+    );
 };
+
+// --- ADDED: Mobile Header Component ---
+const MobileHeader = ({ setIsMobileMenuOpen, handleLogout }) => {
+    return (
+        // --- UPDATED: Removed "fixed top-0 left-0 z-40" to make the bar scroll normally ---
+        <header className="md:hidden w-full p-4 bg-rose-800 text-white flex justify-between items-center shadow-lg">
+            <button
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2"
+            >
+                <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-xl font-bold text-rose-100">Wedding Planner</h1>
+            <button
+                onClick={handleLogout}
+                className="p-2"
+            >
+                <LogOut className="w-6 h-6" />
+            </button>
+        </header>
+    );
+};
+
 
 // --- Dashboard Component ---
 const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) => {
@@ -738,6 +851,337 @@ const Checklist = ({ tasks, db, basePath }) => {
     );
 };
 
+// --- ADDED: Agenda Component ---
+const Agenda = ({ agendaItems, db, basePath }) => {
+    
+    // Sort items by time
+    const sortedAgenda = useMemo(() => {
+        return [...agendaItems].sort((a, b) => {
+            // Simple string sort for time (e.g., "09:00 AM" vs "10:00 AM")
+            return (a.time || '').localeCompare(b.time || '');
+        });
+    }, [agendaItems]);
+
+    const addAgendaItem = async () => {
+        if (!db || !basePath) return;
+        const newItem = { 
+            time: '09:00 AM', 
+            event: 'New Event', 
+            // --- REMOVED: Location ---
+        };
+        const agendaCol = collection(db, `${basePath}/agenda`);
+        try {
+            await addDoc(agendaCol, newItem);
+        } catch (e) {
+            console.error("Error adding agenda item: ", e);
+        }
+    };
+
+    const updateAgendaItem = async (id, field, value) => {
+        if (!db || !basePath) return;
+        const itemDoc = doc(db, `${basePath}/agenda`, id);
+        try {
+            await setDoc(itemDoc, { [field]: value }, { merge: true });
+        } catch (e) {
+            console.error("Error updating agenda item: ", e);
+        }
+    };
+
+    const deleteAgendaItem = async (id) => {
+        if (!db || !basePath) return;
+        const itemDoc = doc(db, `${basePath}/agenda`, id);
+        try {
+            await deleteDoc(itemDoc);
+        } catch (e) {
+            console.error("Error deleting agenda item: ", e);
+        }
+    };
+
+    return (
+        <>
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-4xl font-bold text-rose-900">Wedding Agenda</h1>
+                <button onClick={addAgendaItem} className="bg-rose-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors flex items-center space-x-2">
+                    <Plus className="w-5 h-5" />
+                    <span>Add Event</span>
+                </button>
+            </div>
+            
+            {/* --- UPDATED: Switched from <table> to a list-based layout --- */}
+            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                {/* Header Row */}
+                <div className="flex bg-rose-100">
+                    <h2 className="p-4 font-semibold text-rose-800 w-1/3 md:w-1/4">Time</h2>
+                    <h2 className="p-4 font-semibold text-rose-800 flex-1">Event</h2>
+                    <div className="p-4 w-12"></div> {/* Spacer for delete button */}
+                </div>
+                
+                {/* Agenda Items */}
+                <div className="divide-y divide-rose-100">
+                    {sortedAgenda.length === 0 && (
+                        <p className="p-4 text-gray-500 italic">Your agenda is empty. Add an event to get started!</p>
+                    )}
+                    {sortedAgenda.map(item => (
+                        <div key={item.id} className="flex items-center">
+                            <div className="p-3 w-1/3 md:w-1/4">
+                                <input 
+                                    type="text" 
+                                    value={item.time} 
+                                    onChange={e => updateAgendaItem(item.id, 'time', e.target.value)} 
+                                    className="w-full p-2 rounded border-gray-300" 
+                                    placeholder="e.g., 10:00 AM"
+                                />
+                            </div>
+                            <div className="p-3 flex-1">
+                                <input 
+                                    type="text" 
+                                    value={item.event} 
+                                    onChange={e => updateAgendaItem(item.id, 'event', e.target.value)} 
+                                    className="w-full p-2 rounded border-gray-300"
+                                    placeholder="e.g., Ceremony Starts"
+                                />
+                            </div>
+                            {/* --- REMOVED: Location Input --- */}
+                            <div className="p-3 w-12 text-center">
+                                <button onClick={() => deleteAgendaItem(item.id)} className="text-gray-400 hover:text-red-600 p-1">
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </>
+    );
+};
+
+// --- ADDED: Documents Component ---
+const Documents = ({ documents, db, basePath, storage, planId, showNotification, setConfirmModal }) => {
+    const [docName, setDocName] = useState('');
+    const [docCategory, setDocCategory] = useState('Other');
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    const categoryOptions = ['Advance Payments', 'Full Payment', 'Vendor', 'Other'];
+
+    const handleFileSelect = (e) => {
+        if (e.target.files && e.target.files[0]) {
+            // Check file size (5MB limit)
+            if (e.target.files[0].size > 5 * 1024 * 1024) {
+                showNotification("File is too large. Max size is 5MB.");
+                e.target.value = null; // Clear the input
+                return;
+            }
+            setSelectedFile(e.target.files[0]);
+        }
+    };
+
+    const handleUpload = async (e) => {
+        e.preventDefault();
+        if (!selectedFile || !docName || !docCategory) {
+            showNotification("Please provide a name, category, and file.");
+            return;
+        }
+        if (!storage || !planId || !db || !basePath) return;
+
+        setIsUploading(true);
+
+        // 1. Create a new document in Firestore to get an ID
+        const newDoc = {
+            name: docName,
+            category: docCategory,
+            fileName: selectedFile.name,
+            fileURL: '',
+            filePath: '',
+            createdAt: new Date(),
+        };
+        const docRef = await addDoc(collection(db, `${basePath}/documents`), newDoc);
+
+        // 2. Use the ID to create a storage path and upload the file
+        const filePath = `plans/${planId}/documents/${docRef.id}/${selectedFile.name}`;
+        const fileRef = ref(storage, filePath);
+        const uploadTask = uploadBytesResumable(fileRef, selectedFile);
+
+        uploadTask.on('state_changed', 
+            () => {}, // Progress (optional)
+            (error) => {
+                console.error("Upload failed: ", error);
+                showNotification("Upload failed. Please try again.");
+                // If upload fails, delete the Firestore doc we just created
+                deleteDoc(doc(db, `${basePath}/documents`, docRef.id));
+                setIsUploading(false);
+            }, 
+            () => {
+                // 3. On success, get URL and update the Firestore doc
+                getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+                    setDoc(doc(db, `${basePath}/documents`, docRef.id), { 
+                        fileURL: downloadURL, 
+                        filePath: filePath 
+                    }, { merge: true });
+                    
+                    // Reset form
+                    setDocName('');
+                    setDocCategory('Other');
+                    setSelectedFile(null);
+                    if (document.getElementById('file-upload-input')) {
+                        document.getElementById('file-upload-input').value = '';
+                    }
+                    setIsUploading(false);
+                    showNotification("Document uploaded!");
+                });
+            }
+        );
+    };
+
+    const triggerDelete = (docId, filePath, docName) => {
+        // Use the new confirmation modal
+        setConfirmModal({
+            isOpen: true,
+            title: 'Delete Document?',
+            message: `Are you sure you want to delete "${docName}"? This cannot be undone.`,
+            onConfirm: () => handleFileDelete(docId, filePath)
+        });
+    };
+
+    const handleFileDelete = async (docId, filePath) => {
+        console.log("DEBUG: Deleting document", docId, filePath);
+        if (!storage || !filePath || !db || !basePath) return;
+
+        const fileRef = ref(storage, filePath);
+        try {
+            // 1. Delete from Storage
+            await deleteObject(fileRef);
+            // 2. Delete from Firestore
+            await deleteDoc(doc(db, `${basePath}/documents`, docId));
+            showNotification("Document deleted.");
+        } catch (error) {
+            console.error("Error deleting file: ", error);
+            // Handle case where file doesn't exist in storage but doc does
+            if (error.code === 'storage/object-not-found') {
+                await deleteDoc(doc(db, `${basePath}/documents`, docId));
+                showNotification("Document record deleted.");
+            } else {
+                showNotification("Error deleting file.");
+            }
+        }
+    };
+
+    // Sort documents by category, then name
+    const sortedDocuments = useMemo(() => {
+        return [...documents].sort((a, b) => {
+            if (a.category !== b.category) {
+                return a.category.localeCompare(b.category);
+            }
+            return a.name.localeCompare(b.name);
+        });
+    }, [documents]);
+
+    return (
+        <>
+            <h1 className="text-4xl font-bold text-rose-900 mb-8">Documents</h1>
+
+            {/* Upload Form */}
+            <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+                <h2 className="text-xl font-semibold text-rose-800 mb-4">Add New Document</h2>
+                <form onSubmit={handleUpload} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                        <label htmlFor="doc-name" className="block text-sm font-medium text-gray-700 mb-1">Document Name</label>
+                        <input 
+                            type="text" 
+                            id="doc-name" 
+                            value={docName} 
+                            onChange={e => setDocName(e.target.value)} 
+                            className="w-full p-2 rounded border-gray-300" 
+                            placeholder="e.g., Venue Contract"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label htmlFor="doc-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                        <select 
+                            id="doc-category" 
+                            value={docCategory} 
+                            onChange={e => setDocCategory(e.target.value)} 
+                            className="w-full p-2 rounded border-gray-300"
+                        >
+                            {categoryOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                        </select>
+                    </div>
+                    <div className="flex items-end">
+                        <input 
+                            type="file" 
+                            id="file-upload-input" 
+                            onChange={handleFileSelect} 
+                            className="w-full text-sm text-gray-500
+                                       file:mr-4 file:py-2 file:px-4
+                                       file:rounded-lg file:border-0
+                                       file:text-sm file:font-semibold
+                                       file:bg-rose-100 file:text-rose-700
+                                       hover:file:bg-rose-200 cursor-pointer"
+                            required
+                        />
+                    </div>
+                    <div className="md:col-span-4">
+                        <button 
+                            type="submit" 
+                            className="w-full md:w-auto bg-rose-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
+                            disabled={isUploading}
+                        >
+                            <UploadCloud className="w-5 h-5" />
+                            <span>{isUploading ? 'Uploading...' : 'Upload Document'}</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            {/* Document List */}
+            <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-rose-100">
+                        <tr>
+                            <th className="p-4 font-semibold text-rose-800">Name</th>
+                            <th className="p-4 font-semibold text-rose-800">Category</th>
+                            <th className="p-4 font-semibold text-rose-800">File</th>
+                            <th className="p-4 font-semibold text-rose-800"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sortedDocuments.length === 0 && (
+                            <tr>
+                                <td colSpan="4" className="p-4 text-gray-500 italic">No documents uploaded yet.</td>
+                            </tr>
+                        )}
+                        {sortedDocuments.map(doc => (
+                            <tr key={doc.id} className="border-b border-rose-100 last:border-b-0">
+                                <td className="p-4 font-medium text-gray-800">{doc.name}</td>
+                                <td className="p-4"><span className="text-xs font-medium bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{doc.category}</span></td>
+                                <td className="p-4">
+                                    <a 
+                                        href={doc.fileURL} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="text-rose-600 hover:text-rose-800 flex items-center space-x-1" 
+                                        title={doc.fileName}
+                                    >
+                                        <FileText className="w-5 h-5" />
+                                        <span className="truncate w-32 md:w-auto">{doc.fileName}</span>
+                                    </a>
+                                </td>
+                                <td className="p-4 text-center">
+                                    <button onClick={() => triggerDelete(doc.id, doc.filePath, doc.name)} className="text-gray-400 hover:text-red-600 p-1">
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </>
+    );
+};
+
+
 // --- ADDED: LoginComponent ---
 const LoginComponent = ({ auth, error, setError }) => {
     const [isLoginView, setIsLoginView] = useState(true);
@@ -747,6 +1191,7 @@ const LoginComponent = ({ auth, error, setError }) => {
     const handleAuth = async (e) => {
         e.preventDefault();
         setError('');
+        console.log("DEBUG: Attempting auth", isLoginView ? "login" : "signup");
         try {
             if (isLoginView) {
                 await signInWithEmailAndPassword(auth, email, password);
@@ -754,7 +1199,7 @@ const LoginComponent = ({ auth, error, setError }) => {
                 await createUserWithEmailAndPassword(auth, email, password);
             }
         } catch (err) {
-            console.error(err);
+            console.error("DEBUG: Auth error", err);
             setError(err.message);
         }
     };
@@ -815,12 +1260,13 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
     const createNewPlan = async () => {
         setError('');
         const newPlanId = nanoid(10); // Generate a 10-char ID
-        
+        console.log("DEBUG: Creating new plan", newPlanId);
+
         try {
             // Create a "config" doc to ensure the plan exists
             const configDoc = doc(db, `/plans/${newPlanId}/config`, 'budget');
             await setDoc(configDoc, { amount: 100000 }); // Set default budget
-            
+
             // Optionally, create a default "welcome" task
             const tasksCol = collection(db, `/plans/${newPlanId}/tasks`);
             await addDoc(tasksCol, {
@@ -873,10 +1319,12 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
             setError("Please enter a Plan ID.");
             return;
         }
-    
+
+        console.log("DEBUG: Joining plan", joinId);
         // Check if plan exists by trying to read its config
         const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
         const unsubscribe = onSnapshot(configDoc, (docSnap) => {
+            console.log("DEBUG: Plan check result", docSnap.exists());
             unsubscribe(); // Unsubscribe immediately after the first read
             if (docSnap.exists()) {
                 setPlanId(joinId); // Plan exists, join it
@@ -943,22 +1391,59 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
     );
 };
 
+// --- ADDED: Custom Confirmation Modal Component ---
+const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-600 bg-opacity-75">
+            <div className="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full">
+                <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+                <p className="mt-2 text-sm text-gray-600">{message}</p>
+                <div className="mt-6 flex justify-end space-x-3">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 // --- Main App Component ---
 export default function App() {
     // --- App State ---
     const [currentView, setCurrentView] = useState('dashboard');
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // ADDED: State for mobile menu
     
     // --- Firebase State ---
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
-    // --- UPDATED: User object state ---
+    const [storage, setStorage] = useState(null); // --- ADDED: Storage state
     const [user, setUser] = useState(null);
     // --- UPDATED: basePath to planId ---
     const [planId, setPlanId] = useState(null);
     const [basePath, setBasePath] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
+    const [notification, setNotification] = useState(''); // ADDED: Notification state
+    // --- ADDED: Modal State ---
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        onConfirm: () => {},
+    });
 
     // --- Data State ---
     const [totalBudget, setTotalBudget] = useState(100000);
@@ -966,9 +1451,12 @@ export default function App() {
     const [budgetItems, setBudgetItems] = useState([]);
     const [vendors, setVendors] = useState([]);
     const [tasks, setTasks] = useState([]);
+    const [agendaItems, setAgendaItems] = useState([]); // ADDED: Agenda state
+    const [documents, setDocuments] = useState([]); // ADDED: Documents state
 
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
+        console.log("DEBUG: Initializing Firebase & Auth");
         if (!firebaseConfig.apiKey) {
             console.error("Firebase config is missing!");
             return;
@@ -976,12 +1464,15 @@ export default function App() {
 
         const authInstance = getAuth(app);
         const dbInstance = getFirestore(app);
+        const storageInstance = getStorage(app); // --- ADDED: Init Storage
 
         setAuth(authInstance);
         setDb(dbInstance);
+        setStorage(storageInstance); // --- ADDED: Set Storage
         setIsLoading(true);
 
         const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+            console.log("DEBUG: Auth state changed", user ? "User signed in" : "User signed out");
             if (user) {
                 // User is signed in
                 setUser(user);
@@ -999,6 +1490,14 @@ export default function App() {
         return () => unsubscribe();
     }, []); // Run only once
 
+    // --- ADDED: Handle Notification ---
+    const showNotification = (message) => {
+        setNotification(message);
+        setTimeout(() => {
+            setNotification('');
+        }, 3000); // Notification disappears after 3 seconds
+    };
+
     // --- ADDED: Handle Logout ---
     const handleLogout = async () => {
         if (auth) {
@@ -1008,6 +1507,7 @@ export default function App() {
 
     // --- 2. Update Base Path when Plan ID changes ---
     useEffect(() => {
+        console.log("DEBUG: Plan ID changed", planId);
         if (planId) {
             // --- UPDATED: Path is now based on planId ---
             setBasePath(`/plans/${planId}`);
@@ -1019,14 +1519,18 @@ export default function App() {
 
     // --- 3. Listen to Firestore Data ---
     useEffect(() => {
+        console.log("DEBUG: Firestore data listener effect triggered", { db: !!db, basePath });
         // --- UPDATED: Only run if we have a db and a basePath (which requires a planId) ---
         if (!db || !basePath) {
+            console.log("DEBUG: Clearing data - no db or basePath");
             // Clear data if no plan is selected
             setGuests([]);
             setBudgetItems([]);
             setVendors([]);
             setTasks([]);
             setTotalBudget(100000);
+            setAgendaItems([]); // ADDED: Clear agenda
+            setDocuments([]); // ADDED: Clear documents
             return;
         }
 
@@ -1035,6 +1539,7 @@ export default function App() {
         // Listen to Guests
         const guestsQuery = query(collection(db, `${basePath}/guests`));
         const unsubGuests = onSnapshot(guestsQuery, (querySnapshot) => {
+            console.log("DEBUG: Guests data received", querySnapshot.docs.length);
             const guestData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setGuests(guestData);
         }, (error) => console.error("Error listening to guests: ", error));
@@ -1062,10 +1567,25 @@ export default function App() {
             setTasks(taskData);
         }, (error) => console.error("Error listening to tasks: ", error));
 
+        // ADDED: Listen to Agenda
+        const agendaQuery = query(collection(db, `${basePath}/agenda`));
+        const unsubAgenda = onSnapshot(agendaQuery, (querySnapshot) => {
+            const agendaData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setAgendaItems(agendaData);
+        }, (error) => console.error("Error listening to agenda: ", error));
+
+        // ADDED: Listen to Documents
+        const documentsQuery = query(collection(db, `${basePath}/documents`));
+        const unsubDocuments = onSnapshot(documentsQuery, (querySnapshot) => {
+            const docData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setDocuments(docData);
+        }, (error) => console.error("Error listening to documents: ", error));
+
         // Listen to Total Budget
         // --- UPDATED: Path now uses config/budget relative to basePath ---
         const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
         const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
+            console.log("DEBUG: Budget config received", docSnap.exists());
             if (docSnap.exists()) {
                 setTotalBudget(docSnap.data().amount || 100000);
             } else {
@@ -1081,6 +1601,8 @@ export default function App() {
             unsubVendors();
             unsubTasks();
             unsubTotalBudget();
+            unsubAgenda(); // ADDED: Cleanup agenda listener
+            unsubDocuments(); // ADDED: Cleanup documents listener
         };
 
     }, [db, basePath]); // Rerun if db or basePath changes
@@ -1093,6 +1615,8 @@ export default function App() {
         budgetItems,
         vendors,
         tasks,
+        agendaItems, // ADDED: Pass agenda items
+        documents, // ADDED: Pass documents
         totalBudget,
         setCurrentView,
         setGuests, // Passing setters down
@@ -1101,7 +1625,11 @@ export default function App() {
         setTasks,
         setTotalBudget,
         db, // Pass db and basePath for writing data
-        basePath
+        basePath,
+        storage, // --- ADDED: Pass storage
+        planId, // --- ADDED: Pass planId
+        showNotification, // ADDED: Pass notification
+        setConfirmModal, // ADDED: Pass modal setter
     };
     
     // --- Content Router ---
@@ -1118,12 +1646,16 @@ export default function App() {
                 return <Vendors {...pageProps} />;
             case 'checklist':
                 return <Checklist {...pageProps} />;
+            case 'agenda': // ADDED: Agenda route
+                return <Agenda {...pageProps} />;
+            case 'documents': // ADDED: Documents route
+                return <Documents {...pageProps} />;
             default:
                 return <h1 className="text-3xl font-bold">Page Not Found</h1>;
         }
     };
 
-    // --- UPDATED: Main Render Logic ---
+// --- Main Render Logic ---
     if (isLoading) {
         return <h1 className="text-3xl font-bold p-10">Loading Planner...</h1>;
     }
@@ -1137,14 +1669,39 @@ export default function App() {
     }
 
     return (
-        <div className="flex h-screen bg-rose-50 font-sans">
+        // UPDATED: Main layout for mobile
+        <div className="flex flex-col md:flex-row md:h-screen bg-rose-50 font-sans">
+            <Notification message={notification} /> {/* ADDED: Notification component */}
+            {/* --- ADDED: Confirmation Modal --- */}
+            <ConfirmationModal 
+                isOpen={confirmModal.isOpen}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                onConfirm={() => {
+                    confirmModal.onConfirm();
+                    setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+                }}
+                onCancel={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+            />
+            <MobileHeader 
+                setIsMobileMenuOpen={setIsMobileMenuOpen}
+                handleLogout={handleLogout}
+            />
             <Sidebar 
                 currentView={currentView} 
                 setCurrentView={setCurrentView}
                 planId={planId}
-                handleLogout={handleLogout} 
+                handleLogout={handleLogout}
+                isMobileMenuOpen={isMobileMenuOpen}
+                setIsMobileMenuOpen={setIsMobileMenuOpen}
+                showNotification={showNotification} // PASSED: Notification handler
             />
-            <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+            {/* --- UPDATED: Removed "mt-16" and adjusted desktop padding --- */}
+            <main className="flex-1 overflow-y-auto p-6 md:px-10 md:pt-12 md:pb-10">
+                {/* - p-6: Sets base padding for mobile
+                  - md:px-10 md:pb-10: Sets desktop padding for sides/bottom
+                  - md:pt-12: Sets a larger desktop padding-top (3rem) to move headers down
+                */}
                 {renderContent()}
             </main>
         </div>
