@@ -8,10 +8,13 @@ service firebase.storage {
     // e.g., /plans/{planId}/documents/{docId}/contract.pdf
     match /plans/{planId}/{allPaths=**} {
     
-      // Allow read/write (get, create, delete) IF
-      // 1. The user is logged in (request.auth != null)
-      // 2. The file size is less than 5MB (to prevent abuse)
-      allow read, write: if request.auth != null && request.resource.size < 5 * 1024 * 1024;
+      // Allow ANYONE with the unguessable link to read the file.
+      allow read; 
+
+      // Allow ONLY authenticated users to write (upload/delete) files
+      // and enforce the 5MB size limit on new uploads.
+      allow write: if request.auth != null 
+        && request.resource.size < 5 * 1024 * 1024;
     }
   }
 }

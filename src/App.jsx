@@ -196,7 +196,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
             </button>
 
             <div className="mt-6">
-                <p className="text-xs text-rose-300">© 2025 PlanPerfect</p>
+                <p className="text-xs text-rose-300">© 2025 SicatDigital</p>
             </div>
         </nav>
     );
