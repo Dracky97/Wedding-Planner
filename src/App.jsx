@@ -18,18 +18,24 @@ import {
   Folder, // ADDED: For Documents tab
   UploadCloud, // ADDED: For new component
   FileText, // ADDED: For new component
+  Settings as SettingsIcon, // ADDED: For Settings tab
+  Download, // ADDED: For backup
+  Upload, // ADDED: For restore
+  Key, // ADDED: For password reset
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
-import { 
-    getAuth, 
+import {
+    getAuth,
     // --- REMOVED: signInAnonymously
     onAuthStateChanged,
     // --- ADDED: Email/Password Auth ---
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
-    signOut
+    signOut,
+    sendPasswordResetEmail, // ADDED: For password reset
+    updatePassword // ADDED: For password update
 } from 'firebase/auth';
-import { 
+import {
     getFirestore,
     doc,
     addDoc,
@@ -38,15 +44,17 @@ import {
     onSnapshot,
     collection,
     query,
-    writeBatch // --- ADDED: For initial plan setup
+    where, // ADDED: For user plans queries
+    writeBatch, // --- ADDED: For initial plan setup
+    getDocs // ADDED: For backup functionality
 } from 'firebase/firestore';
 // --- ADDED: Firebase Storage ---
-import { 
-    getStorage, 
-    ref, 
-    uploadBytesResumable, 
-    getDownloadURL, 
-    deleteObject 
+import {
+    getStorage,
+    ref,
+    uploadBytesResumable,
+    getDownloadURL,
+    deleteObject
 } from "firebase/storage";
 // --- ADDED: For Plan ID generation ---
 import { nanoid } from 'nanoid';
@@ -112,6 +120,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
         { key: 'checklist', name: 'Checklist', icon: CheckSquare },
         { key: 'agenda', name: 'Agenda', icon: ListTodo }, // ADDED: Agenda nav item
         { key: 'documents', name: 'Documents', icon: Folder }, // ADDED: Documents tab
+        { key: 'settings', name: 'Settings', icon: SettingsIcon }, // ADDED: Settings tab
     ];
 
     // --- UPDATED: Copy Plan ID functionality ---
@@ -1187,11 +1196,25 @@ const LoginComponent = ({ auth, error, setError }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
 
     const handleAuth = async (e) => {
         e.preventDefault();
         setError('');
         console.log("DEBUG: Attempting auth", isLoginView ? "login" : "signup");
+        
+        // Password validation for signup
+        if (!isLoginView) {
+            if (password !== confirmPassword) {
+                setError('Passwords do not match');
+                return;
+            }
+            if (password.length < 6) {
+                setError('Password must be at least 6 characters long');
+                return;
+            }
+        }
+        
         try {
             if (isLoginView) {
                 await signInWithEmailAndPassword(auth, email, password);
@@ -1231,8 +1254,26 @@ const LoginComponent = ({ auth, error, setError }) => {
                             onChange={e => setPassword(e.target.value)}
                             required
                             className="w-full p-3 border border-gray-300 rounded-lg"
+                            placeholder="Enter your password"
                         />
                     </div>
+                    
+                    {/* Password confirmation field for signup */}
+                    {!isLoginView && (
+                        <div>
+                            <label htmlFor="confirmPassword" className="text-sm font-medium text-gray-700 block mb-1">Confirm Password</label>
+                            <input
+                                type="password"
+                                id="confirmPassword"
+                                value={confirmPassword}
+                                onChange={e => setConfirmPassword(e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                                placeholder="Confirm your password"
+                            />
+                        </div>
+                    )}
+                    
                     {error && <p className="text-sm text-red-600">{error}</p>}
                     <button
                         type="submit"
@@ -1243,7 +1284,14 @@ const LoginComponent = ({ auth, error, setError }) => {
                     </button>
                 </form>
                 <button
-                    onClick={() => { setIsLoginView(!isLoginView); setError(''); }}
+                    onClick={() => {
+                        setIsLoginView(!isLoginView);
+                        setError('');
+                        // Clear form when switching views
+                        setEmail('');
+                        setPassword('');
+                        setConfirmPassword('');
+                    }}
                     className="w-full text-sm text-center text-rose-600 hover:underline"
                 >
                     {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Login'}
@@ -1253,8 +1301,135 @@ const LoginComponent = ({ auth, error, setError }) => {
     );
 };
 
+// --- ADDED: RecentPlans Component ---
+const RecentPlans = ({ user, db, setPlanId, setError }) => {
+    const [recentPlans, setRecentPlans] = useState([]);
+
+    useEffect(() => {
+        if (!user || !db) return;
+
+        const userPlansQuery = query(collection(db, `/users/${user.uid}/plans`));
+        const unsubscribe = onSnapshot(userPlansQuery, (querySnapshot) => {
+            const plansData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            // Sort by last accessed, most recent first
+            plansData.sort((a, b) => {
+                const dateA = a.lastAccessed?.toDate ? a.lastAccessed.toDate() : new Date(a.lastAccessed);
+                const dateB = b.lastAccessed?.toDate ? b.lastAccessed.toDate() : new Date(b.lastAccessed);
+                return dateB - dateA;
+            });
+            setRecentPlans(plansData);
+        }, (error) => {
+            console.error("Error fetching recent plans: ", error);
+        });
+
+        return () => unsubscribe();
+    }, [user, db]);
+
+    const selectPlan = async (planId) => {
+        try {
+            setError('');
+            // Verify plan still exists
+            const configDoc = doc(db, `/plans/${planId}/config`, 'budget');
+            const docSnap = await new Promise((resolve) => {
+                const unsubscribe = onSnapshot(configDoc, (docSnap) => {
+                    unsubscribe();
+                    resolve(docSnap);
+                });
+            });
+
+            if (docSnap.exists()) {
+                // Update last accessed time
+                const userPlanQuery = query(
+                    collection(db, `/users/${user.uid}/plans`),
+                    where('planId', '==', planId)
+                );
+                const userPlanSnapshot = await getDocs(userPlanQuery);
+                if (!userPlanSnapshot.empty) {
+                    const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlanSnapshot.docs[0].id);
+                    await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+                }
+                
+                setPlanId(planId);
+            } else {
+                // Plan no longer exists, remove from recent list
+                const userPlanQuery = query(
+                    collection(db, `/users/${user.uid}/plans`),
+                    where('planId', '==', planId)
+                );
+                const userPlanSnapshot = await getDocs(userPlanQuery);
+                if (!userPlanSnapshot.empty) {
+                    const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlanSnapshot.docs[0].id);
+                    await deleteDoc(userPlanDoc);
+                }
+                setError("This plan is no longer available and has been removed from your recent list.");
+            }
+        } catch (error) {
+            console.error("Error selecting plan: ", error);
+            setError("Error accessing plan. Please try again.");
+        }
+    };
+
+    const removePlan = async (planId, event) => {
+        event.stopPropagation();
+        try {
+            const userPlanQuery = query(
+                collection(db, `/users/${user.uid}/plans`),
+                where('planId', '==', planId)
+            );
+            const userPlanSnapshot = await getDocs(userPlanQuery);
+            if (!userPlanSnapshot.empty) {
+                const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlanSnapshot.docs[0].id);
+                await deleteDoc(userPlanDoc);
+            }
+        } catch (error) {
+            console.error("Error removing plan: ", error);
+            setError("Error removing plan from list.");
+        }
+    };
+
+    if (recentPlans.length === 0) return null;
+
+    return (
+        <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Your Recent Plans</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recentPlans.map((plan) => (
+                    <div
+                        key={plan.id}
+                        onClick={() => selectPlan(plan.planId)}
+                        className="bg-white p-4 rounded-lg border border-gray-200 hover:border-rose-300 hover:shadow-md transition-all cursor-pointer relative group"
+                    >
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-medium text-gray-900">
+                                Plan {plan.planId}
+                            </h4>
+                            <button
+                                onClick={(e) => removePlan(plan.planId, e)}
+                                className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Remove from recent list"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                            <p>Role: <span className="capitalize">{plan.role}</span></p>
+                            <p>
+                                Last accessed: {
+                                    plan.lastAccessed?.toDate ?
+                                        plan.lastAccessed.toDate().toLocaleDateString() :
+                                        new Date(plan.lastAccessed).toLocaleDateString()
+                                }
+                            </p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 // --- ADDED: PlanSelector Component ---
-const PlanSelector = ({ db, setPlanId, setError, error }) => {
+const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
     const [joinId, setJoinId] = useState('');
 
     const createNewPlan = async () => {
@@ -1274,6 +1449,28 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
                 timeline: '12+ Months',
                 completed: false
             });
+
+            // Check if plan already exists in user's plans list to prevent duplicates
+            const userPlansQuery = query(
+                collection(db, `/users/${user.uid}/plans`),
+                where('planId', '==', newPlanId)
+            );
+            const userPlansSnapshot = await getDocs(userPlansQuery);
+            
+            if (userPlansSnapshot.empty) {
+                // Plan doesn't exist in user's list, add it
+                const userPlansCol = collection(db, `/users/${user.uid}/plans`);
+                await addDoc(userPlansCol, {
+                    planId: newPlanId,
+                    createdAt: new Date(),
+                    lastAccessed: new Date(),
+                    role: 'owner'
+                });
+            } else {
+                // Plan already exists, just update last accessed time
+                const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
+                await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+            }
 
             setPlanId(newPlanId);
         } catch (err) {
@@ -1323,10 +1520,32 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
         console.log("DEBUG: Joining plan", joinId);
         // Check if plan exists by trying to read its config
         const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
-        const unsubscribe = onSnapshot(configDoc, (docSnap) => {
+        const unsubscribe = onSnapshot(configDoc, async (docSnap) => {
             console.log("DEBUG: Plan check result", docSnap.exists());
             unsubscribe(); // Unsubscribe immediately after the first read
             if (docSnap.exists()) {
+                // Check if plan already exists in user's plans
+                const userPlansQuery = query(
+                    collection(db, `/users/${user.uid}/plans`),
+                    where('planId', '==', joinId)
+                );
+                const userPlansSnapshot = await getDocs(userPlansQuery);
+                
+                if (userPlansSnapshot.empty) {
+                    // Plan doesn't exist in user's list, add it
+                    const userPlansCol = collection(db, `/users/${user.uid}/plans`);
+                    await addDoc(userPlansCol, {
+                        planId: joinId,
+                        createdAt: new Date(),
+                        lastAccessed: new Date(),
+                        role: 'collaborator'
+                    });
+                } else {
+                    // Plan already exists, update last accessed time
+                    const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
+                    await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+                }
+                
                 setPlanId(joinId); // Plan exists, join it
             } else {
                 setError("Plan ID not found. Please check the ID and try again.");
@@ -1341,51 +1560,58 @@ const PlanSelector = ({ db, setPlanId, setError, error }) => {
 
     return (
         <div className="flex items-center justify-center h-screen w-full bg-rose-50">
-            <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg text-center">
-                <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
-                <p className="text-gray-600">Get started by creating a new plan or joining your partner's plan.</p>
-                
-                {/* Create Plan Button */}
-                <button
-                    onClick={createNewPlan}
-                    className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
-                >
-                    <PartyPopper className="w-5 h-5" />
-                    <span>Create a New Plan</span>
-                </button>
-
-                <div className="relative my-4">
-                    <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t border-gray-300"></span>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-white text-gray-500">or</span>
-                    </div>
+            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg">
+                <div className="text-center">
+                    <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
+                    <p className="text-gray-600 mt-2">Get started by creating a new plan or joining your partner's plan.</p>
                 </div>
+                
+                {/* Recent Plans Section */}
+                <RecentPlans user={user} db={db} setPlanId={setPlanId} setError={setError} />
 
-                {/* Join Plan Form */}
-                <form onSubmit={joinPlanFix} className="space-y-4">
-                    <div>
-                        <label htmlFor="planId" className="text-sm font-medium text-gray-700 block mb-1 text-left">Join an Existing Plan</label>
-                        <input
-                            type="text"
-                            id="planId"
-                            placeholder="Enter Plan ID from partner"
-                            value={joinId}
-                            onChange={e => setJoinId(e.target.value)}
-                            required
-                            className="w-full p-3 border border-gray-300 rounded-lg"
-                        />
-                    </div>
-                    {error && <p className="text-sm text-red-600">{error}</p>}
+                <div className="border-t pt-6">
+                    {/* Create Plan Button */}
                     <button
-                        type="submit"
-                        className="w-full p-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2"
+                        onClick={createNewPlan}
+                        className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2 mb-4"
                     >
-                        <LogIn className="w-5 h-5" />
-                        <span>Join Plan</span>
+                        <PartyPopper className="w-5 h-5" />
+                        <span>Create a New Plan</span>
                     </button>
-                </form>
+
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t border-gray-300"></span>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">or</span>
+                        </div>
+                    </div>
+
+                    {/* Join Plan Form */}
+                    <form onSubmit={joinPlanFix} className="space-y-4">
+                        <div>
+                            <label htmlFor="planId" className="text-sm font-medium text-gray-700 block mb-1 text-left">Join an Existing Plan</label>
+                            <input
+                                type="text"
+                                id="planId"
+                                placeholder="Enter Plan ID from partner"
+                                value={joinId}
+                                onChange={e => setJoinId(e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                            />
+                        </div>
+                        {error && <p className="text-sm text-red-600">{error}</p>}
+                        <button
+                            type="submit"
+                            className="w-full p-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors flex items-center justify-center space-x-2"
+                        >
+                            <LogIn className="w-5 h-5" />
+                            <span>Join Plan</span>
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );
@@ -1416,6 +1642,347 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
                 </div>
             </div>
         </div>
+    );
+};
+
+// --- ADDED: Settings Component ---
+const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendors, tasks, agendaItems, documents, totalBudget, showNotification, setConfirmModal, setPlanId, setError }) => {
+    const [resetEmail, setResetEmail] = useState(user?.email || '');
+    const [isResettingPassword, setIsResettingPassword] = useState(false);
+    const [isCreatingPlan, setIsCreatingPlan] = useState(false);
+
+    // Password reset functionality
+    const handlePasswordReset = async (e) => {
+        e.preventDefault();
+        if (!resetEmail) {
+            showNotification('Please enter your email address');
+            return;
+        }
+
+        setIsResettingPassword(true);
+        try {
+            await sendPasswordResetEmail(auth, resetEmail);
+            showNotification('Password reset email sent! Check your inbox.');
+        } catch (error) {
+            console.error('Password reset error:', error);
+            showNotification('Error sending password reset email: ' + error.message);
+        } finally {
+            setIsResettingPassword(false);
+        }
+    };
+
+    // Create new plan functionality
+    const createNewPlan = async () => {
+        setError('');
+        const newPlanId = nanoid(10); // Generate a 10-char ID
+        console.log("DEBUG: Creating new plan", newPlanId);
+
+        setIsCreatingPlan(true);
+        try {
+            // Create a "config" doc to ensure the plan exists
+            const configDoc = doc(db, `/plans/${newPlanId}/config`, 'budget');
+            await setDoc(configDoc, { amount: 100000 }); // Set default budget
+
+            // Optionally, create a default "welcome" task
+            const tasksCol = collection(db, `/plans/${newPlanId}/tasks`);
+            await addDoc(tasksCol, {
+                text: 'Start planning your wedding!',
+                timeline: '12+ Months',
+                completed: false
+            });
+
+            // Check if plan already exists in user's plans list to prevent duplicates
+            const userPlansQuery = query(
+                collection(db, `/users/${user.uid}/plans`),
+                where('planId', '==', newPlanId)
+            );
+            const userPlansSnapshot = await getDocs(userPlansQuery);
+            
+            if (userPlansSnapshot.empty) {
+                // Plan doesn't exist in user's list, add it
+                const userPlansCol = collection(db, `/users/${user.uid}/plans`);
+                await addDoc(userPlansCol, {
+                    planId: newPlanId,
+                    createdAt: new Date(),
+                    lastAccessed: new Date(),
+                    role: 'owner'
+                });
+            } else {
+                // Plan already exists, just update last accessed time
+                const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
+                await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+            }
+
+            showNotification('New plan created successfully!');
+            setPlanId(newPlanId);
+        } catch (err) {
+            console.error("Error creating new plan: ", err);
+            setError(err.message);
+        } finally {
+            setIsCreatingPlan(false);
+        }
+    };
+
+    // Backup functionality - Export all data
+    const handleBackup = () => {
+        try {
+            const backupData = {
+                planId: planId,
+                exportDate: new Date().toISOString(),
+                totalBudget: totalBudget,
+                guests: guests,
+                budgetItems: budgetItems,
+                vendors: vendors,
+                tasks: tasks,
+                agendaItems: agendaItems,
+                documents: documents.map(doc => ({
+                    ...doc,
+                    // Remove fileURL and filePath as they might not be accessible
+                    fileURL: undefined,
+                    filePath: undefined
+                }))
+            };
+
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `wedding-planner-backup-${planId}-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            showNotification('Backup downloaded successfully!');
+        } catch (error) {
+            console.error('Backup error:', error);
+            showNotification('Error creating backup: ' + error.message);
+        }
+    };
+
+    // Restore functionality - Import data
+    const handleRestore = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const backupData = JSON.parse(text);
+            
+            // Validate backup data structure
+            if (!backupData.planId || !backupData.exportDate) {
+                showNotification('Invalid backup file format');
+                return;
+            }
+
+            // Confirm restore action
+            setConfirmModal({
+                isOpen: true,
+                title: 'Restore Backup Data?',
+                message: 'This will replace all current data with the backup data. This action cannot be undone. Continue?',
+                onConfirm: () => performRestore(backupData)
+            });
+
+        } catch (error) {
+            console.error('Restore error:', error);
+            showNotification('Error reading backup file: ' + error.message);
+        } finally {
+            // Clear the file input
+            e.target.value = '';
+        }
+    };
+
+    // Perform the actual restore operation
+    const performRestore = async (backupData) => {
+        try {
+            if (!db || !basePath) {
+                showNotification('Database not available');
+                return;
+            }
+
+            // Clear existing data and restore backup data
+            const batch = writeBatch(db);
+
+            // Restore budget
+            if (backupData.totalBudget !== undefined) {
+                const budgetDoc = doc(db, `${basePath}/config`, 'budget');
+                batch.set(budgetDoc, { amount: backupData.totalBudget }, { merge: true });
+            }
+
+            // Helper function to restore collection
+            const restoreCollection = async (collectionName, dataArray, excludeFields = []) => {
+                if (!dataArray || !Array.isArray(dataArray)) return;
+
+                // Clear existing data first
+                const existingQuery = query(collection(db, `${basePath}/${collectionName}`));
+                const existingDocs = await getDocs(existingQuery);
+                existingDocs.docs.forEach(docSnapshot => {
+                    batch.delete(doc(db, `${basePath}/${collectionName}`, docSnapshot.id));
+                });
+
+                // Add backup data
+                dataArray.forEach(item => {
+                    const cleanItem = { ...item };
+                    excludeFields.forEach(field => delete cleanItem[field]);
+                    delete cleanItem.id; // Remove ID to let Firestore generate new ones
+                    
+                    const newDocRef = doc(collection(db, `${basePath}/${collectionName}`));
+                    batch.set(newDocRef, cleanItem);
+                });
+            };
+
+            // Restore all collections
+            await restoreCollection('guests', backupData.guests);
+            await restoreCollection('budgetItems', backupData.budgetItems);
+            await restoreCollection('vendors', backupData.vendors);
+            await restoreCollection('tasks', backupData.tasks);
+            await restoreCollection('agendaItems', backupData.agendaItems);
+            await restoreCollection('documents', backupData.documents, ['fileURL', 'filePath']);
+
+            // Commit the batch
+            await batch.commit();
+            
+            showNotification('Data restored successfully! Please refresh the page to see all changes.');
+        } catch (error) {
+            console.error('Restore operation error:', error);
+            showNotification('Error restoring data: ' + error.message);
+        }
+    };
+
+    return (
+        <>
+            <h1 className="text-4xl font-bold text-rose-900 mb-8">Settings</h1>
+            
+            <div className="space-y-8">
+                {/* Plan Management Section */}
+                <div className="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-semibold text-rose-800 mb-4 flex items-center space-x-2">
+                        <PartyPopper className="w-6 h-6" />
+                        <span>Plan Management</span>
+                    </h2>
+                    
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-800 mb-3">Create New Plan</h3>
+                            <p className="text-gray-600 mb-3">
+                                Start a new wedding planning session. You can switch between multiple plans at any time.
+                            </p>
+                            <button
+                                onClick={createNewPlan}
+                                disabled={isCreatingPlan}
+                                className="bg-rose-600 text-white px-5 py-2 rounded-lg hover:bg-rose-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+                            >
+                                <Plus className="w-4 h-4" />
+                                <span>{isCreatingPlan ? 'Creating...' : 'Create New Plan'}</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Password Reset Section */}
+                <div className="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-semibold text-rose-800 mb-4 flex items-center space-x-2">
+                        <Key className="w-6 h-6" />
+                        <span>Password Management</span>
+                    </h2>
+                    
+                    <div className="space-y-6">
+                        {/* Email-based Password Reset */}
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-800 mb-3">Reset Password</h3>
+                            <form onSubmit={handlePasswordReset} className="flex flex-col sm:flex-row gap-3">
+                                <input
+                                    type="email"
+                                    value={resetEmail}
+                                    onChange={(e) => setResetEmail(e.target.value)}
+                                    placeholder="Enter your email address"
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                                <button
+                                    type="submit"
+                                    disabled={isResettingPassword}
+                                    className="bg-rose-600 text-white px-5 py-2 rounded-lg hover:bg-rose-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+                                >
+                                    <Key className="w-4 h-4" />
+                                    <span>{isResettingPassword ? 'Sending...' : 'Send Reset Email'}</span>
+                                </button>
+                            </form>
+                            <p className="text-sm text-gray-600 mt-2">
+                                Enter your email address and we'll send you a link to reset your password.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Backup & Restore Section */}
+                <div className="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-semibold text-rose-800 mb-4 flex items-center space-x-2">
+                        <UploadCloud className="w-6 h-6" />
+                        <span>Backup & Restore</span>
+                    </h2>
+                    
+                    <div className="space-y-6">
+                        {/* Backup */}
+                        <div>
+                            <h3 className="text-lg font-medium text-gray-800 mb-3">Backup Your Data</h3>
+                            <p className="text-gray-600 mb-3">
+                                Download all your wedding planner data as a JSON file. This includes guests, budget items, vendors, tasks, agenda, and documents (excluding file contents).
+                            </p>
+                            <button
+                                onClick={handleBackup}
+                                className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span>Download Backup</span>
+                            </button>
+                        </div>
+
+                        {/* Restore */}
+                        <div className="border-t pt-6">
+                            <h3 className="text-lg font-medium text-gray-800 mb-3">Restore from Backup</h3>
+                            <p className="text-gray-600 mb-3">
+                                Upload a previously saved backup file to restore your data. This will replace all current data with the backup data.
+                            </p>
+                            <div className="flex items-center space-x-3">
+                                <input
+                                    type="file"
+                                    accept=".json"
+                                    onChange={handleRestore}
+                                    className="hidden"
+                                    id="restore-file-input"
+                                />
+                                <label
+                                    htmlFor="restore-file-input"
+                                    className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 cursor-pointer"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    <span>Select Backup File</span>
+                                </label>
+                                <span className="text-sm text-gray-500">Choose a .json backup file</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Plan Information */}
+                <div className="bg-white p-6 rounded-xl shadow-lg">
+                    <h2 className="text-xl font-semibold text-rose-800 mb-4">Plan Information</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label className="text-sm font-medium text-gray-700">Current Plan ID</label>
+                            <p className="text-lg font-mono text-gray-900">{planId || 'No plan selected'}</p>
+                        </div>
+                        <div>
+                            <label className="text-sm font-medium text-gray-700">User Email</label>
+                            <p className="text-lg text-gray-900">{user?.email}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </>
     );
 };
 
@@ -1500,7 +2067,23 @@ export default function App() {
 
     // --- ADDED: Handle Logout ---
     const handleLogout = async () => {
-        if (auth) {
+        if (auth && user && planId) {
+            // Update last accessed time before logout
+            try {
+                const userPlanQuery = query(
+                    collection(db, `/users/${user.uid}/plans`),
+                    where('planId', '==', planId)
+                );
+                const userPlanSnapshot = await getDocs(userPlanQuery);
+                if (!userPlanSnapshot.empty) {
+                    const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlanSnapshot.docs[0].id);
+                    await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+                }
+            } catch (error) {
+                console.error("Error updating last accessed time: ", error);
+            }
+            await signOut(auth);
+        } else if (auth) {
             await signOut(auth);
         }
     };
@@ -1607,6 +2190,34 @@ export default function App() {
 
     }, [db, basePath]); // Rerun if db or basePath changes
 
+    // --- ADDED: Update last accessed time periodically when plan is active ---
+    useEffect(() => {
+        if (!user || !planId || !db) return;
+
+        // Update last accessed time when plan becomes active
+        const updateLastAccessed = async () => {
+            try {
+                const userPlanQuery = query(
+                    collection(db, `/users/${user.uid}/plans`),
+                    where('planId', '==', planId)
+                );
+                const userPlanSnapshot = await getDocs(userPlanQuery);
+                if (!userPlanSnapshot.empty) {
+                    const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlanSnapshot.docs[0].id);
+                    await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
+                }
+            } catch (error) {
+                console.error("Error updating last accessed time: ", error);
+            }
+        };
+
+        updateLastAccessed();
+
+        // Update every 5 minutes while plan is active
+        const interval = setInterval(updateLastAccessed, 5 * 60 * 1000);
+
+        return () => clearInterval(interval);
+    }, [user, planId, db, basePath]);
     
     // --- Props for children ---
     // Data is passed down from state
@@ -1650,6 +2261,8 @@ export default function App() {
                 return <Agenda {...pageProps} />;
             case 'documents': // ADDED: Documents route
                 return <Documents {...pageProps} />;
+            case 'settings': // ADDED: Settings route
+                return <Settings {...pageProps} auth={auth} user={user} setPlanId={setPlanId} setError={setError} />;
             default:
                 return <h1 className="text-3xl font-bold">Page Not Found</h1>;
         }
@@ -1665,7 +2278,7 @@ export default function App() {
     }
     
     if (!planId) {
-        return <PlanSelector db={db} setPlanId={setPlanId} error={error} setError={setError} />;
+        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} />;
     }
 
     return (
