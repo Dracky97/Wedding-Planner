@@ -155,7 +155,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
 
     // This is the content for the sidebar, reused in desktop and mobile
     const sidebarContent = (
-        <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col h-full">
+        <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col h-full overflow-y-auto">
             <h1 className="text-3xl font-bold mb-8 text-rose-100">Wedding Planner</h1>
             <ul className="space-y-3 flex-1">
                 {views.map(view => {
