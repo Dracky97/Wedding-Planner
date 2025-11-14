@@ -195,7 +195,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                             <Copy className="w-4 h-4" />
                         </button>
                     </div>
-                    <p className="text-xs text-rose-300 mt-2">Dont share the Planner ID with other than your loved ones.</p>
+                    <p className="text-xs text-rose-200 mt-2">Don't share the Planner ID with other than your loved ones.</p>
                 </div>
             )}
             
@@ -1329,7 +1329,7 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
 };
 
 // --- ADDED: PlanSelector Component ---
-const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
+const PlanSelector = ({ db, user, setPlanId, setError, error, handleLogout }) => {
     const [joinId, setJoinId] = useState('');
 
     const createNewPlan = async () => {
@@ -1460,7 +1460,14 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
 
     return (
         <div className="flex items-center justify-center h-screen w-full bg-rose-50">
-            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg">
+            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg relative">
+                <button
+                    onClick={handleLogout}
+                    className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors"
+                    title="Logout"
+                >
+                    <LogOut className="w-5 h-5" />
+                </button>
                 <div className="text-center">
                     <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
                     <p className="text-gray-600 mt-2">Get started by creating a new plan or joining your partner's plan.</p>
@@ -2176,11 +2183,11 @@ export default function App() {
     if (!user) {
         // --- THIS IS THE MODIFIED LINE ---
         // The original LoginComponent is replaced with AuthPage
-        return <AuthPage auth={auth} error={error} setError={setError} />;
+        return <AuthPage auth={auth} db={db} error={error} setError={setError} />;
     }
     
     if (!planId) {
-        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} />;
+        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} />;
     }
 
     return (

@@ -6,24 +6,29 @@ import { LogIn, UserPlus } from 'lucide-react';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
+    updateProfile,
 } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 
 /**
  * We are moving the LoginComponent from App.jsx into this file
  * to keep it neatly bundled with the authentication flow.
  */
-const LoginComponent = ({ auth, error, setError }) => {
+const LoginComponent = ({ auth, db, error, setError }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [name, setName] = useState('');
+    const [mobile, setMobile] = useState('');
+    const [confirmEmail, setConfirmEmail] = useState('');
 
     const handleAuth = async (e) => {
         e.preventDefault();
         setError('');
         console.log("DEBUG: Attempting auth", isLoginView ? "login" : "signup");
         
-        // Password validation for signup
+        // Validation for signup
         if (!isLoginView) {
             if (password !== confirmPassword) {
                 setError('Passwords do not match');
@@ -33,13 +38,32 @@ const LoginComponent = ({ auth, error, setError }) => {
                 setError('Password must be at least 6 characters long');
                 return;
             }
+            if (email !== confirmEmail) {
+                setError('Emails do not match');
+                return;
+            }
+            if (!name.trim()) {
+                setError('Name is required');
+                return;
+            }
         }
         
         try {
             if (isLoginView) {
                 await signInWithEmailAndPassword(auth, email, password);
             } else {
-                await createUserWithEmailAndPassword(auth, email, password);
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                // Update user profile with name
+                await updateProfile(userCredential.user, {
+                    displayName: name.trim()
+                });
+                // Save user details to Firestore
+                await setDoc(doc(db, 'users', userCredential.user.uid), {
+                    name: name.trim(),
+                    email: email,
+                    mobile: mobile || null,
+                    createdAt: new Date(),
+                });
             }
         } catch (err) {
             console.error("DEBUG: Auth error", err);
@@ -54,6 +78,20 @@ const LoginComponent = ({ auth, error, setError }) => {
                     {isLoginView ? 'Login' : 'Sign Up'}
                 </h1>
                 <form onSubmit={handleAuth} className="space-y-4">
+                    {!isLoginView && (
+                        <div>
+                            <label htmlFor="name" className="text-sm font-medium text-gray-700 block mb-1">Name</label>
+                            <input
+                                type="text"
+                                id="name"
+                                value={name}
+                                onChange={e => setName(e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                                placeholder="Enter your full name"
+                            />
+                        </div>
+                    )}
                     <div>
                         <label htmlFor="email" className="text-sm font-medium text-gray-700 block mb-1">Email</label>
                         <input
@@ -65,6 +103,33 @@ const LoginComponent = ({ auth, error, setError }) => {
                             className="w-full p-3 border border-gray-300 rounded-lg"
                         />
                     </div>
+                    {!isLoginView && (
+                        <div>
+                            <label htmlFor="confirmEmail" className="text-sm font-medium text-gray-700 block mb-1">Confirm Email</label>
+                            <input
+                                type="email"
+                                id="confirmEmail"
+                                value={confirmEmail}
+                                onChange={e => setConfirmEmail(e.target.value)}
+                                required
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                                placeholder="Confirm your email"
+                            />
+                        </div>
+                    )}
+                    {!isLoginView && (
+                        <div>
+                            <label htmlFor="mobile" className="text-sm font-medium text-gray-700 block mb-1">Mobile Number <span className="text-gray-500">(optional)</span></label>
+                            <input
+                                type="tel"
+                                id="mobile"
+                                value={mobile}
+                                onChange={e => setMobile(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg"
+                                placeholder="Enter your mobile number"
+                            />
+                        </div>
+                    )}
                     <div>
                         <label htmlFor="password" className="text-sm font-medium text-gray-700 block mb-1">Password</label>
                         <input
@@ -109,6 +174,9 @@ const LoginComponent = ({ auth, error, setError }) => {
                         setEmail('');
                         setPassword('');
                         setConfirmPassword('');
+                        setName('');
+                        setMobile('');
+                        setConfirmEmail('');
                     }}
                     className="w-full text-sm text-center text-rose-600 hover:underline"
                 >
@@ -125,11 +193,11 @@ const LoginComponent = ({ auth, error, setError }) => {
  * It holds a state `showLogin` to decide whether to show
  * the LandingPage or the LoginComponent.
  */
-const AuthPage = ({ auth, error, setError }) => {
+const AuthPage = ({ auth, db, error, setError }) => {
     const [showLogin, setShowLogin] = useState(false);
 
     if (showLogin) {
-        return <LoginComponent auth={auth} error={error} setError={setError} />;
+        return <LoginComponent auth={auth} db={db} error={error} setError={setError} />;
     }
 
     return <LandingPage onGetStarted={() => setShowLogin(true)} />;
