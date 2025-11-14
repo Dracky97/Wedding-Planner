@@ -62,8 +62,8 @@ import { nanoid } from 'nanoid';
 // --- ADDED: Import for the new AuthPage wrapper ---
 import AuthPage from './AuthPage';
 
-// --- ADDED: Import for the Adsterra component ---
-import AdsterraComponent from './AdsterraComponent';
+// --- UPDATED: Import for the new Native Banner component ---
+import AdsterraNativeBanner from './AdsterraNativeBanner';
 
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
@@ -92,8 +92,6 @@ const Notification = ({ message }) => {
     return (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg animate-fade-in-out">
             {message}
-            {/* We can add a simple fade animation with Tailwind config, but for now, it just appears and disappears */}
-            {/* Or add a keyframe animation in index.html's <style> tag if needed */}
         </div>
     );
 };
@@ -115,8 +113,6 @@ const DoughnutChart = ({ percent, color, trackColor, text, subtext }) => {
 };
 
 // --- Sidebar Component ---
-// --- UPDATED: To accept planId and handle logout/copy ---
-// UPDATED: Now accepts mobile menu state handlers
 const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMenuOpen, setIsMobileMenuOpen, showNotification }) => {
     const views = [
         { key: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
@@ -129,10 +125,8 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
         { key: 'settings', name: 'Settings', icon: SettingsIcon }, // ADDED: Settings tab
     ];
 
-    // --- UPDATED: Copy Plan ID functionality ---
     const copyPlanId = () => {
         if (!navigator.clipboard) {
-            // Fallback for insecure contexts
             try {
                 const textArea = document.createElement("textarea");
                 textArea.value = planId;
@@ -157,7 +151,6 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
             });
     };
 
-    // This is the content for the sidebar, reused in desktop and mobile
     const sidebarContent = (
         <nav className="w-64 bg-rose-800 text-white p-6 shadow-lg flex flex-col h-full overflow-y-auto">
             <h1 className="text-3xl font-bold mb-8 text-rose-100">Wedding Planner</h1>
@@ -184,7 +177,6 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                 })}
             </ul>
             
-            {/* --- ADDED: Plan ID Sharing Section --- */}
             {planId && (
                 <div className="mt-4 p-3 bg-rose-700 rounded-lg">
                     <label className="text-xs text-rose-200 font-medium">Your Plan ID:</label>
@@ -202,7 +194,6 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                 </div>
             )}
             
-            {/* --- ADDED: Logout Button --- */}
             <button
                 onClick={handleLogout}
                 className="flex items-center space-x-3 w-full text-left p-3 rounded-lg transition-colors duration-200 text-rose-200 hover:bg-rose-700 hover:text-white mt-4"
@@ -220,7 +211,6 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
     return (
         <>
             {/* --- Desktop Sidebar --- */}
-            {/* Hides on small screens, shows on medium and up */}
             <div className="hidden md:flex h-screen flex-shrink-0">
                 {sidebarContent}
             </div>
@@ -256,7 +246,6 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
 // --- ADDED: Mobile Header Component ---
 const MobileHeader = ({ setIsMobileMenuOpen, handleLogout }) => {
     return (
-        // --- UPDATED: Removed "fixed top-0 left-0 z-40" to make the bar scroll normally ---
         <header className="md:hidden w-full p-4 bg-rose-800 text-white flex justify-between items-center shadow-lg">
             <button
                 onClick={() => setIsMobileMenuOpen(true)}
@@ -278,7 +267,6 @@ const MobileHeader = ({ setIsMobileMenuOpen, handleLogout }) => {
 
 // --- Dashboard Component ---
 const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) => {
-    // Budget Calculations
     const budgetStats = useMemo(() => {
         const totalSpent = budgetItems.reduce((sum, item) => sum + item.paid, 0);
         const totalCost = budgetItems.reduce((sum, item) => sum + item.cost, 0);
@@ -288,7 +276,6 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
         return { totalSpent, balanceDue, remainingBudget, spentPercent };
     }, [budgetItems, totalBudget]);
 
-    // Attendance Calculations
     const attendanceStats = useMemo(() => {
         const totalInvited = guests.filter(g => g.invited).reduce((sum, g) => sum + g.numPeople, 0);
         const attending = guests.filter(g => g.rsvp === 'yes').reduce((sum, g) => sum + g.numPeople, 0);
@@ -298,7 +285,6 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
         return { totalInvited, attending, notAttending, unconfirmed, attendingPercent };
     }, [guests]);
 
-    // Task Calculations
     const taskStats = useMemo(() => {
         const tasksCompleted = tasks.filter(t => t.completed).length;
         const totalTasks = tasks.length;
@@ -393,24 +379,19 @@ const Dashboard = ({ guests, budgetItems, tasks, totalBudget, setCurrentView }) 
 
 // --- Guest List Component ---
 const GuestList = ({ guests, db, basePath }) => {
-    // --- STATE for filtering
-    const [filterSide, setFilterSide] = useState('Brides Side'); // 'Brides Side' or 'Grooms Side'
-    
-    // --- NEW: Updated tag options
+    const [filterSide, setFilterSide] = useState('Brides Side');
     const tagOptions = ['Brides Side', 'Grooms Side'];
     const mealOptions = ['Beef', 'Chicken', 'Vegan', 'Kids'];
 
     const addGuest = async () => {
-        if (!db || !basePath) return; // Prevent adding if db not ready
+        if (!db || !basePath) return;
         const newGuest = { 
             name: 'New Guest', 
             phone: '', 
-            // --- NEW: Updated default tag
-            tag: filterSide, // Default to the currently viewed side
+            tag: filterSide,
             invited: false, 
             rsvp: null, 
             numPeople: 1, 
-            // --- REMOVED: rehearsal and farewell
             meal: null 
         };
         const guestsCol = collection(db, `${basePath}/guests`);
@@ -441,12 +422,10 @@ const GuestList = ({ guests, db, basePath }) => {
         }
     };
 
-    // --- NEW: Filter guests based on state
     const filteredGuests = useMemo(() => {
         return guests.filter(guest => guest.tag === filterSide);
     }, [guests, filterSide]);
 
-    // --- NEW: Calculate totals for tabs
     const bridesSideTotal = useMemo(() => {
         return guests
             .filter(g => g.tag === 'Brides Side')
@@ -461,7 +440,7 @@ const GuestList = ({ guests, db, basePath }) => {
 
     return (
         <>
-            <div className="flex justify-between items-center mb-4"> {/* Reduced margin bottom */}
+            <div className="flex justify-between items-center mb-4">
                 <h1 className="text-4xl font-bold text-rose-900">Guest List</h1>
                 <button onClick={addGuest} className="bg-rose-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors flex items-center space-x-2">
                     <Plus className="w-5 h-5" />
@@ -469,7 +448,6 @@ const GuestList = ({ guests, db, basePath }) => {
                 </button>
             </div>
             
-            {/* --- NEW: Filter Tabs --- */}
             <div className="flex mb-4 border-b border-gray-300">
                 <button
                     onClick={() => setFilterSide('Brides Side')}
@@ -503,20 +481,17 @@ const GuestList = ({ guests, db, basePath }) => {
                             <th className="p-4 font-semibold text-rose-800">Invited</th>
                             <th className="p-4 font-semibold text-rose-800">#</th>
                             <th className="p-4 font-semibold text-rose-800">RSVP</th>
-                            {/* --- REMOVED: Rehearsal and Farewell Headers --- */}
                             <th className="p-4 font-semibold text-rose-800">Meal</th>
                             <th className="p-4 font-semibold text-rose-800"></th>
                         </tr>
                     </thead>
                     <tbody>
-                        {/* --- NEW: Use filteredGuests array --- */}
                         {filteredGuests.map(guest => (
                             <tr key={guest.id} className="border-b border-rose-100 last:border-b-0">
                                 <td className="p-3"><input type="text" value={guest.name} onChange={e => updateGuest(guest.id, 'name', e.target.value)} className="w-full p-1 rounded border-gray-300" /></td>
                                 <td className="p-3"><input type="text" value={guest.phone} onChange={e => updateGuest(guest.id, 'phone', e.target.value)} className="w-full p-1 rounded border-gray-300" /></td>
                                 <td className="p-3">
                                     <select value={guest.tag} onChange={e => updateGuest(guest.id, 'tag', e.target.value)} className="w-full p-1 rounded border-gray-300">
-                                        {/* --- NEW: Updated tag options --- */}
                                         {tagOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                     </select>
                                 </td>
@@ -529,7 +504,6 @@ const GuestList = ({ guests, db, basePath }) => {
                                         <option value="no">No</option>
                                     </select>
                                 </td>
-                                {/* --- REMOVED: Rehearsal and Farewell Cells --- */}
                                 <td className="p-3">
                                     <select value={guest.meal || ''} onChange={e => updateGuest(guest.id, 'meal', e.target.value || null)} className="w-full p-1 rounded border-gray-300" disabled={guest.rsvp !== 'yes'}>
                                         <option value="">-</option>
@@ -595,10 +569,8 @@ const Budget = ({ budgetItems, totalBudget, db, basePath }) => {
 
     const updateTotalBudget = async (newAmount) => {
         if (!db || !basePath) return;
-        // --- UPDATED: Path now uses config/budget relative to basePath ---
         const configDoc = doc(db, `${basePath}/config`, 'budget');
         try {
-            // Use setDoc with merge to create or update
             await setDoc(configDoc, { amount: newAmount }, { merge: true });
         } catch (e) {
             console.error("Error updating total budget: ", e);
@@ -772,7 +744,6 @@ const Vendors = ({ vendors, db, basePath }) => {
 const Checklist = ({ tasks, db, basePath }) => {
     
     const timelines = useMemo(() => {
-        // Use a static list to ensure order and presence, even if empty
         return timelineOrder;
     }, []);
 
@@ -870,10 +841,8 @@ const Checklist = ({ tasks, db, basePath }) => {
 // --- ADDED: Agenda Component ---
 const Agenda = ({ agendaItems, db, basePath }) => {
     
-    // Sort items by time
     const sortedAgenda = useMemo(() => {
         return [...agendaItems].sort((a, b) => {
-            // Simple string sort for time (e.g., "09:00 AM" vs "10:00 AM")
             return (a.time || '').localeCompare(b.time || '');
         });
     }, [agendaItems]);
@@ -883,7 +852,6 @@ const Agenda = ({ agendaItems, db, basePath }) => {
         const newItem = { 
             time: '09:00 AM', 
             event: 'New Event', 
-            // --- REMOVED: Location ---
         };
         const agendaCol = collection(db, `${basePath}/agenda`);
         try {
@@ -926,22 +894,16 @@ const Agenda = ({ agendaItems, db, basePath }) => {
                 </button>
             </div>
             
-            {/* --- NEW: Visual Timeline Layout --- */}
             <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
                 {sortedAgenda.length === 0 ? (
                     <p className="p-4 text-center text-gray-500 italic">Your agenda is empty. Add an event to get started!</p>
                 ) : (
-                    // Timeline container
                     <div className="relative border-l-2 border-rose-200 ml-6 space-y-8">
                         {sortedAgenda.map((item, index) => (
                             <div key={item.id} className="relative">
-                                {/* Timeline Dot */}
                                 <div className="absolute -left-4 top-1.5 w-6 h-6 bg-rose-600 rounded-full border-4 border-white"></div>
-
-                                {/* Content Box */}
                                 <div className="ml-10 bg-white p-4 rounded-lg shadow-sm border border-rose-100 relative">
                                     <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
-                                        {/* Time Input */}
                                         <input
                                             type="text"
                                             value={item.time}
@@ -949,7 +911,6 @@ const Agenda = ({ agendaItems, db, basePath }) => {
                                             className="w-full md:w-32 p-2 rounded border-gray-300 font-medium text-rose-900"
                                             placeholder="e.g., 10:00 AM"
                                         />
-                                        {/* Event Input */}
                                         <input
                                             type="text"
                                             value={item.event}
@@ -958,7 +919,6 @@ const Agenda = ({ agendaItems, db, basePath }) => {
                                             placeholder="e.g., Ceremony Starts"
                                         />
                                     </div>
-                                    {/* Delete Button positioned to the right */}
                                     <button onClick={() => deleteAgendaItem(item.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-1">
                                         <Trash2 className="w-5 h-5" />
                                     </button>
@@ -983,10 +943,9 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
 
     const handleFileSelect = (e) => {
         if (e.target.files && e.target.files[0]) {
-            // Check file size (5MB limit)
             if (e.target.files[0].size > 5 * 1024 * 1024) {
                 showNotification("File is too large. Max size is 5MB.");
-                e.target.value = null; // Clear the input
+                e.target.value = null;
                 return;
             }
             setSelectedFile(e.target.files[0]);
@@ -1003,7 +962,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
 
         setIsUploading(true);
 
-        // 1. Create a new document in Firestore to get an ID
         const newDoc = {
             name: docName,
             category: docCategory,
@@ -1014,29 +972,25 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
         };
         const docRef = await addDoc(collection(db, `${basePath}/documents`), newDoc);
 
-        // 2. Use the ID to create a storage path and upload the file
         const filePath = `plans/${planId}/documents/${docRef.id}/${selectedFile.name}`;
         const fileRef = ref(storage, filePath);
         const uploadTask = uploadBytesResumable(fileRef, selectedFile);
 
         uploadTask.on('state_changed', 
-            () => {}, // Progress (optional)
+            () => {},
             (error) => {
                 console.error("Upload failed: ", error);
                 showNotification("Upload failed. Please try again.");
-                // If upload fails, delete the Firestore doc we just created
                 deleteDoc(doc(db, `${basePath}/documents`, docRef.id));
                 setIsUploading(false);
             }, 
             () => {
-                // 3. On success, get URL and update the Firestore doc
                 getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
                     setDoc(doc(db, `${basePath}/documents`, docRef.id), { 
                         fileURL: downloadURL, 
                         filePath: filePath 
                     }, { merge: true });
                     
-                    // Reset form
                     setDocName('');
                     setDocCategory('Other');
                     setSelectedFile(null);
@@ -1051,7 +1005,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
     };
 
     const triggerDelete = (docId, filePath, docName) => {
-        // Use the new confirmation modal
         setConfirmModal({
             isOpen: true,
             title: 'Delete Document?',
@@ -1066,14 +1019,11 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
 
         const fileRef = ref(storage, filePath);
         try {
-            // 1. Delete from Storage
             await deleteObject(fileRef);
-            // 2. Delete from Firestore
             await deleteDoc(doc(db, `${basePath}/documents`, docId));
             showNotification("Document deleted.");
         } catch (error) {
             console.error("Error deleting file: ", error);
-            // Handle case where file doesn't exist in storage but doc does
             if (error.code === 'storage/object-not-found') {
                 await deleteDoc(doc(db, `${basePath}/documents`, docId));
                 showNotification("Document record deleted.");
@@ -1083,7 +1033,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
         }
     };
 
-    // Sort documents by category, then name
     const sortedDocuments = useMemo(() => {
         return [...documents].sort((a, b) => {
             if (a.category !== b.category) {
@@ -1097,7 +1046,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
         <>
             <h1 className="text-4xl font-bold text-rose-900 mb-8">Documents</h1>
 
-            {/* Upload Form */}
             <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
                 <h2 className="text-xl font-semibold text-rose-800 mb-4">Add New Document</h2>
                 <form onSubmit={handleUpload} className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -1151,7 +1099,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
                 </form>
             </div>
 
-            {/* Document List */}
             <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
                 <table className="w-full text-left">
                     <thead className="bg-rose-100">
@@ -1199,11 +1146,6 @@ const Documents = ({ documents, db, basePath, storage, planId, showNotification,
 };
 
 
-// --- REMOVED: LoginComponent ---
-// The LoginComponent has been moved to src/AuthPage.jsx
-// --- END REMOVED LoginComponent ---
-
-
 // --- ADDED: RecentPlans Component ---
 const RecentPlans = ({ user, db, setPlanId, setError }) => {
     const [recentPlans, setRecentPlans] = useState([]);
@@ -1214,7 +1156,6 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
         const userPlansQuery = query(collection(db, `/users/${user.uid}/plans`));
         const unsubscribe = onSnapshot(userPlansQuery, (querySnapshot) => {
             const plansData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Sort by last accessed, most recent first
             plansData.sort((a, b) => {
                 const dateA = a.lastAccessed?.toDate ? a.lastAccessed.toDate() : new Date(a.lastAccessed);
                 const dateB = b.lastAccessed?.toDate ? b.lastAccessed.toDate() : new Date(b.lastAccessed);
@@ -1231,7 +1172,6 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
     const selectPlan = async (planId) => {
         try {
             setError('');
-            // Verify plan still exists
             const configDoc = doc(db, `/plans/${planId}/config`, 'budget');
             const docSnap = await new Promise((resolve) => {
                 const unsubscribe = onSnapshot(configDoc, (docSnap) => {
@@ -1241,7 +1181,6 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
             });
 
             if (docSnap.exists()) {
-                // Update last accessed time
                 const userPlanQuery = query(
                     collection(db, `/users/${user.uid}/plans`),
                     where('planId', '==', planId)
@@ -1254,7 +1193,6 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
                 
                 setPlanId(planId);
             } else {
-                // Plan no longer exists, remove from recent list
                 const userPlanQuery = query(
                     collection(db, `/users/${user.uid}/plans`),
                     where('planId', '==', planId)
@@ -1337,15 +1275,13 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
 
     const createNewPlan = async () => {
         setError('');
-        const newPlanId = nanoid(10); // Generate a 10-char ID
+        const newPlanId = nanoid(10);
         console.log("DEBUG: Creating new plan", newPlanId);
 
         try {
-            // Create a "config" doc to ensure the plan exists
             const configDoc = doc(db, `/plans/${newPlanId}/config`, 'budget');
-            await setDoc(configDoc, { amount: 100000 }); // Set default budget
+            await setDoc(configDoc, { amount: 100000 });
 
-            // Optionally, create a default "welcome" task
             const tasksCol = collection(db, `/plans/${newPlanId}/tasks`);
             await addDoc(tasksCol, {
                 text: 'Start planning your wedding!',
@@ -1353,7 +1289,6 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                 completed: false
             });
 
-            // Check if plan already exists in user's plans list to prevent duplicates
             const userPlansQuery = query(
                 collection(db, `/users/${user.uid}/plans`),
                 where('planId', '==', newPlanId)
@@ -1361,7 +1296,6 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
             const userPlansSnapshot = await getDocs(userPlansQuery);
             
             if (userPlansSnapshot.empty) {
-                // Plan doesn't exist in user's list, add it
                 const userPlansCol = collection(db, `/users/${user.uid}/plans`);
                 await addDoc(userPlansCol, {
                     planId: newPlanId,
@@ -1370,7 +1304,6 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                     role: 'owner'
                 });
             } else {
-                // Plan already exists, just update last accessed time
                 const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
                 await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
             }
@@ -1381,37 +1314,7 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
             setError(err.message);
         }
     };
-
-    const joinPlan = async (e) => {
-        e.preventDefault();
-        setError('');
-        if (!joinId) {
-            setError("Please enter a Plan ID.");
-            return;
-        }
-
-        // Check if plan exists by trying to read its config
-        try {
-            const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
-            const docSnap = await onSnapshot(configDoc, (docSnap) => {
-                if (docSnap.exists()) {
-                    setPlanId(joinId); // Plan exists, join it
-                } else {
-                    setError("Plan ID not found. Please check the ID and try again.");
-                }
-            });
-            // Call docSnap() to get an unsubscribe function, then immediately call it
-            // This is a one-time check, not a persistent listener
-            docSnap(); 
-        } catch (err) {
-            console.error("Error joining plan: ", err);
-            setError("Error checking Plan ID.");
-        }
-    };
     
-    // A quick-fix for the one-time read issue in the 'joinPlan' function.
-    // A better implementation would use getDoc, but we'll stick to onSnapshot
-    // as getDoc isn't imported. This is a hack.
     const joinPlanFix = async (e) => {
         e.preventDefault();
         setError('');
@@ -1421,13 +1324,11 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
         }
 
         console.log("DEBUG: Joining plan", joinId);
-        // Check if plan exists by trying to read its config
         const configDoc = doc(db, `/plans/${joinId}/config`, 'budget');
         const unsubscribe = onSnapshot(configDoc, async (docSnap) => {
             console.log("DEBUG: Plan check result", docSnap.exists());
-            unsubscribe(); // Unsubscribe immediately after the first read
+            unsubscribe(); 
             if (docSnap.exists()) {
-                // Check if plan already exists in user's plans
                 const userPlansQuery = query(
                     collection(db, `/users/${user.uid}/plans`),
                     where('planId', '==', joinId)
@@ -1435,7 +1336,6 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                 const userPlansSnapshot = await getDocs(userPlansQuery);
                 
                 if (userPlansSnapshot.empty) {
-                    // Plan doesn't exist in user's list, add it
                     const userPlansCol = collection(db, `/users/${user.uid}/plans`);
                     await addDoc(userPlansCol, {
                         planId: joinId,
@@ -1444,12 +1344,11 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                         role: 'collaborator'
                     });
                 } else {
-                    // Plan already exists, update last accessed time
                     const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
                     await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
                 }
                 
-                setPlanId(joinId); // Plan exists, join it
+                setPlanId(joinId);
             } else {
                 setError("Plan ID not found. Please check the ID and try again.");
             }
@@ -1469,31 +1368,30 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                     <p className="text-gray-600 mt-2">Get started by creating a new plan or joining your partner's plan.</p>
                 </div>
                 
-                {/* Recent Plans Section */}
                 <RecentPlans user={user} db={db} setPlanId={setPlanId} setError={setError} />
 
                 <div className="border-t pt-6">
-
-                    {/* --- ADSTERRA AD BLOCK --- */}
-                    <div className="mb-4 flex justify-center">
-                        <AdsterraComponent
-                            atKey="a8996032ae7a0eb712cea6174a089722"
-                            atFormat="iframe"
-                            atHeight={90}
-                            atWidth={728}
-                        />
-                    </div>
-                    {/* --- END AD BLOCK --- */}
-
-                    {/* Create Plan Button */}
+                    
+                    {/* --- 1. Create Plan Button (MOVED UP) --- */}
                     <button
                         onClick={createNewPlan}
-                        className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2 mb-4"
+                        className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
                     >
                         <PartyPopper className="w-5 h-5" />
                         <span>Create a New Plan</span>
                     </button>
 
+                    {/* --- 2. NATIVE BANNER AD BLOCK --- */}
+                    <div className="my-4 flex justify-center">
+                        <AdsterraNativeBanner
+                            scriptSrc="//pl28049633.effectivegatecpm.com/a66f11eac893e2a95ec6f14d617ff20c/invoke.js"
+                            containerId="container-a66f11eac893e2a95ec6f14d617ff20c"
+                        />
+                    </div>
+                    {/* --- END AD BLOCK --- */}
+
+
+                    {/* --- 3. "or" separator --- */}
                     <div className="relative my-4">
                         <div className="absolute inset-0 flex items-center">
                             <span className="w-full border-t border-gray-300"></span>
@@ -1503,7 +1401,7 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                         </div>
                     </div>
 
-                    {/* Join Plan Form */}
+                    {/* --- 4. Join Plan Form --- */}
                     <form onSubmit={joinPlanFix} className="space-y-4">
                         <div>
                             <label htmlFor="planId" className="text-sm font-medium text-gray-700 block mb-1 text-left">Join an Existing Plan</label>
@@ -1566,7 +1464,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
     const [isResettingPassword, setIsResettingPassword] = useState(false);
     const [isCreatingPlan, setIsCreatingPlan] = useState(false);
 
-    // Password reset functionality
     const handlePasswordReset = async (e) => {
         e.preventDefault();
         if (!resetEmail) {
@@ -1586,19 +1483,16 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
         }
     };
 
-    // Create new plan functionality
     const createNewPlan = async () => {
         setError('');
-        const newPlanId = nanoid(10); // Generate a 10-char ID
+        const newPlanId = nanoid(10);
         console.log("DEBUG: Creating new plan", newPlanId);
 
         setIsCreatingPlan(true);
         try {
-            // Create a "config" doc to ensure the plan exists
             const configDoc = doc(db, `/plans/${newPlanId}/config`, 'budget');
-            await setDoc(configDoc, { amount: 100000 }); // Set default budget
+            await setDoc(configDoc, { amount: 100000 });
 
-            // Optionally, create a default "welcome" task
             const tasksCol = collection(db, `/plans/${newPlanId}/tasks`);
             await addDoc(tasksCol, {
                 text: 'Start planning your wedding!',
@@ -1606,7 +1500,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
                 completed: false
             });
 
-            // Check if plan already exists in user's plans list to prevent duplicates
             const userPlansQuery = query(
                 collection(db, `/users/${user.uid}/plans`),
                 where('planId', '==', newPlanId)
@@ -1614,7 +1507,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
             const userPlansSnapshot = await getDocs(userPlansQuery);
             
             if (userPlansSnapshot.empty) {
-                // Plan doesn't exist in user's list, add it
                 const userPlansCol = collection(db, `/users/${user.uid}/plans`);
                 await addDoc(userPlansCol, {
                     planId: newPlanId,
@@ -1623,7 +1515,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
                     role: 'owner'
                 });
             } else {
-                // Plan already exists, just update last accessed time
                 const userPlanDoc = doc(db, `/users/${user.uid}/plans`, userPlansSnapshot.docs[0].id);
                 await setDoc(userPlanDoc, { lastAccessed: new Date() }, { merge: true });
             }
@@ -1638,7 +1529,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
         }
     };
 
-    // Backup functionality - Export all data
     const handleBackup = () => {
         try {
             const backupData = {
@@ -1652,7 +1542,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
                 agendaItems: agendaItems,
                 documents: documents.map(doc => ({
                     ...doc,
-                    // Remove fileURL and filePath as they might not be accessible
                     fileURL: undefined,
                     filePath: undefined
                 }))
@@ -1677,7 +1566,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
         }
     };
 
-    // Restore functionality - Import data
     const handleRestore = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1686,13 +1574,11 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
             const text = await file.text();
             const backupData = JSON.parse(text);
             
-            // Validate backup data structure
             if (!backupData.planId || !backupData.exportDate) {
                 showNotification('Invalid backup file format');
                 return;
             }
 
-            // Confirm restore action
             setConfirmModal({
                 isOpen: true,
                 title: 'Restore Backup Data?',
@@ -1704,12 +1590,10 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
             console.error('Restore error:', error);
             showNotification('Error reading backup file: ' + error.message);
         } finally {
-            // Clear the file input
             e.target.value = '';
         }
     };
 
-    // Perform the actual restore operation
     const performRestore = async (backupData) => {
         try {
             if (!db || !basePath) {
@@ -1717,38 +1601,32 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
                 return;
             }
 
-            // Clear existing data and restore backup data
             const batch = writeBatch(db);
 
-            // Restore budget
             if (backupData.totalBudget !== undefined) {
                 const budgetDoc = doc(db, `${basePath}/config`, 'budget');
                 batch.set(budgetDoc, { amount: backupData.totalBudget }, { merge: true });
             }
 
-            // Helper function to restore collection
             const restoreCollection = async (collectionName, dataArray, excludeFields = []) => {
                 if (!dataArray || !Array.isArray(dataArray)) return;
 
-                // Clear existing data first
                 const existingQuery = query(collection(db, `${basePath}/${collectionName}`));
                 const existingDocs = await getDocs(existingQuery);
                 existingDocs.docs.forEach(docSnapshot => {
                     batch.delete(doc(db, `${basePath}/${collectionName}`, docSnapshot.id));
                 });
 
-                // Add backup data
                 dataArray.forEach(item => {
                     const cleanItem = { ...item };
                     excludeFields.forEach(field => delete cleanItem[field]);
-                    delete cleanItem.id; // Remove ID to let Firestore generate new ones
+                    delete cleanItem.id;
                     
                     const newDocRef = doc(collection(db, `${basePath}/${collectionName}`));
                     batch.set(newDocRef, cleanItem);
                 });
             };
 
-            // Restore all collections
             await restoreCollection('guests', backupData.guests);
             await restoreCollection('budgetItems', backupData.budgetItems);
             await restoreCollection('vendors', backupData.vendors);
@@ -1756,7 +1634,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
             await restoreCollection('agendaItems', backupData.agendaItems);
             await restoreCollection('documents', backupData.documents, ['fileURL', 'filePath']);
 
-            // Commit the batch
             await batch.commit();
             
             showNotification('Data restored successfully! Please refresh the page to see all changes.');
@@ -1804,7 +1681,6 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
                     </h2>
                     
                     <div className="space-y-6">
-                        {/* Email-based Password Reset */}
                         <div>
                             <h3 className="text-lg font-medium text-gray-800 mb-3">Reset Password</h3>
                             <form onSubmit={handlePasswordReset} className="flex flex-col sm:flex-row gap-3">
@@ -1906,20 +1782,18 @@ const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendo
 export default function App() {
     // --- App State ---
     const [currentView, setCurrentView] = useState('dashboard');
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // ADDED: State for mobile menu
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     
     // --- Firebase State ---
     const [db, setDb] = useState(null);
     const [auth, setAuth] = useState(null);
-    const [storage, setStorage] = useState(null); // --- ADDED: Storage state
+    const [storage, setStorage] = useState(null);
     const [user, setUser] = useState(null);
-    // --- UPDATED: basePath to planId ---
     const [planId, setPlanId] = useState(null);
     const [basePath, setBasePath] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [notification, setNotification] = useState(''); // ADDED: Notification state
-    // --- ADDED: Modal State ---
+    const [notification, setNotification] = useState('');
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
         title: '',
@@ -1933,8 +1807,8 @@ export default function App() {
     const [budgetItems, setBudgetItems] = useState([]);
     const [vendors, setVendors] = useState([]);
     const [tasks, setTasks] = useState([]);
-    const [agendaItems, setAgendaItems] = useState([]); // ADDED: Agenda state
-    const [documents, setDocuments] = useState([]); // ADDED: Documents state
+    const [agendaItems, setAgendaItems] = useState([]);
+    const [documents, setDocuments] = useState([]);
 
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
@@ -1946,44 +1820,39 @@ export default function App() {
 
         const authInstance = getAuth(app);
         const dbInstance = getFirestore(app);
-        const storageInstance = getStorage(app); // --- ADDED: Init Storage
+        const storageInstance = getStorage(app);
 
         setAuth(authInstance);
         setDb(dbInstance);
-        setStorage(storageInstance); // --- ADDED: Set Storage
+        setStorage(storageInstance);
         setIsLoading(true);
 
         const unsubscribe = onAuthStateChanged(authInstance, (user) => {
             console.log("DEBUG: Auth state changed", user ? "User signed in" : "User signed out");
             if (user) {
-                // User is signed in
                 setUser(user);
-                // --- REMOVED: Anonymous sign-in logic ---
             } else {
-                // User is signed out
                 setUser(null);
-                setPlanId(null); // Clear plan on logout
-                setBasePath(''); // Clear path on logout
+                setPlanId(null);
+                setBasePath('');
             }
             setIsLoading(false);
         });
 
-        // Cleanup auth listener on component unmount
         return () => unsubscribe();
-    }, []); // Run only once
+    }, []);
 
     // --- ADDED: Handle Notification ---
     const showNotification = (message) => {
         setNotification(message);
         setTimeout(() => {
             setNotification('');
-        }, 3000); // Notification disappears after 3 seconds
+        }, 3000);
     };
 
     // --- ADDED: Handle Logout ---
     const handleLogout = async () => {
         if (auth && user && planId) {
-            // Update last accessed time before logout
             try {
                 const userPlanQuery = query(
                     collection(db, `/users/${user.uid}/plans`),
@@ -2007,7 +1876,6 @@ export default function App() {
     useEffect(() => {
         console.log("DEBUG: Plan ID changed", planId);
         if (planId) {
-            // --- UPDATED: Path is now based on planId ---
             setBasePath(`/plans/${planId}`);
         } else {
             setBasePath('');
@@ -2018,23 +1886,20 @@ export default function App() {
     // --- 3. Listen to Firestore Data ---
     useEffect(() => {
         console.log("DEBUG: Firestore data listener effect triggered", { db: !!db, basePath });
-        // --- UPDATED: Only run if we have a db and a basePath (which requires a planId) ---
         if (!db || !basePath) {
             console.log("DEBUG: Clearing data - no db or basePath");
-            // Clear data if no plan is selected
             setGuests([]);
             setBudgetItems([]);
             setVendors([]);
             setTasks([]);
             setTotalBudget(100000);
-            setAgendaItems([]); // ADDED: Clear agenda
-            setDocuments([]); // ADDED: Clear documents
+            setAgendaItems([]);
+            setDocuments([]);
             return;
         }
 
         console.log(`Setting up listeners for plan path: ${basePath}`);
 
-        // Listen to Guests
         const guestsQuery = query(collection(db, `${basePath}/guests`));
         const unsubGuests = onSnapshot(guestsQuery, (querySnapshot) => {
             console.log("DEBUG: Guests data received", querySnapshot.docs.length);
@@ -2042,74 +1907,63 @@ export default function App() {
             setGuests(guestData);
         }, (error) => console.error("Error listening to guests: ", error));
 
-        // Listen to Budget Items
         const budgetQuery = query(collection(db, `${basePath}/budgetItems`));
         const unsubBudgetItems = onSnapshot(budgetQuery, (querySnapshot) => {
             const budgetData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setBudgetItems(budgetData);
         }, (error) => console.error("Error listening to budget items: ", error));
 
-        // Listen to Vendors
         const vendorsQuery = query(collection(db, `${basePath}/vendors`));
         const unsubVendors = onSnapshot(vendorsQuery, (querySnapshot) => {
             const vendorData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setVendors(vendorData);
         }, (error) => console.error("Error listening to vendors: ", error));
 
-        // Listen to Tasks
         const tasksQuery = query(collection(db, `${basePath}/tasks`));
         const unsubTasks = onSnapshot(tasksQuery, (querySnapshot) => {
             const taskData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Sort tasks by timeline order
             taskData.sort((a, b) => timelineOrder.indexOf(a.timeline) - timelineOrder.indexOf(b.timeline));
             setTasks(taskData);
         }, (error) => console.error("Error listening to tasks: ", error));
 
-        // ADDED: Listen to Agenda
         const agendaQuery = query(collection(db, `${basePath}/agenda`));
         const unsubAgenda = onSnapshot(agendaQuery, (querySnapshot) => {
             const agendaData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setAgendaItems(agendaData);
         }, (error) => console.error("Error listening to agenda: ", error));
 
-        // ADDED: Listen to Documents
         const documentsQuery = query(collection(db, `${basePath}/documents`));
         const unsubDocuments = onSnapshot(documentsQuery, (querySnapshot) => {
             const docData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             setDocuments(docData);
         }, (error) => console.error("Error listening to documents: ", error));
 
-        // Listen to Total Budget
-        // --- UPDATED: Path now uses config/budget relative to basePath ---
         const budgetConfigDoc = doc(db, `${basePath}/config`, 'budget');
         const unsubTotalBudget = onSnapshot(budgetConfigDoc, (docSnap) => {
             console.log("DEBUG: Budget config received", docSnap.exists());
             if (docSnap.exists()) {
                 setTotalBudget(docSnap.data().amount || 100000);
             } else {
-                // If doc doesn't exist, set default
                 setTotalBudget(100000);
             }
         }, (error) => console.error("Error listening to total budget: ", error));
 
-        // Cleanup all listeners on component unmount or when path changes
         return () => {
             unsubGuests();
             unsubBudgetItems();
             unsubVendors();
             unsubTasks();
             unsubTotalBudget();
-            unsubAgenda(); // ADDED: Cleanup agenda listener
-            unsubDocuments(); // ADDED: Cleanup documents listener
+            unsubAgenda();
+            unsubDocuments();
         };
 
-    }, [db, basePath]); // Rerun if db or basePath changes
+    }, [db, basePath]);
 
     // --- ADDED: Update last accessed time periodically when plan is active ---
     useEffect(() => {
         if (!user || !planId || !db) return;
 
-        // Update last accessed time when plan becomes active
         const updateLastAccessed = async () => {
             try {
                 const userPlanQuery = query(
@@ -2127,40 +1981,35 @@ export default function App() {
         };
 
         updateLastAccessed();
-
-        // Update every 5 minutes while plan is active
         const interval = setInterval(updateLastAccessed, 5 * 60 * 1000);
-
         return () => clearInterval(interval);
     }, [user, planId, db, basePath]);
     
     // --- Props for children ---
-    // Data is passed down from state
     const pageProps = {
         guests,
         budgetItems,
         vendors,
         tasks,
-        agendaItems, // ADDED: Pass agenda items
-        documents, // ADDED: Pass documents
+        agendaItems,
+        documents,
         totalBudget,
         setCurrentView,
-        setGuests, // Passing setters down
+        setGuests,
         setBudgetItems,
         setVendors,
         setTasks,
         setTotalBudget,
-        db, // Pass db and basePath for writing data
+        db,
         basePath,
-        storage, // --- ADDED: Pass storage
-        planId, // --- ADDED: Pass planId
-        showNotification, // ADDED: Pass notification
-        setConfirmModal, // ADDED: Pass modal setter
+        storage,
+        planId,
+        showNotification,
+        setConfirmModal,
     };
     
     // --- Content Router ---
     const renderContent = () => {
-        // --- UPDATED: Main app content ---
         switch (currentView) {
             case 'dashboard':
                 return <Dashboard {...pageProps} />;
@@ -2172,11 +2021,11 @@ export default function App() {
                 return <Vendors {...pageProps} />;
             case 'checklist':
                 return <Checklist {...pageProps} />;
-            case 'agenda': // ADDED: Agenda route
+            case 'agenda':
                 return <Agenda {...pageProps} />;
-            case 'documents': // ADDED: Documents route
+            case 'documents':
                 return <Documents {...pageProps} />;
-            case 'settings': // ADDED: Settings route
+            case 'settings':
                 return <Settings {...pageProps} auth={auth} user={user} setPlanId={setPlanId} setError={setError} />;
             default:
                 return <h1 className="text-3xl font-bold">Page Not Found</h1>;
@@ -2189,8 +2038,6 @@ export default function App() {
     }
 
     if (!user) {
-        // --- THIS IS THE MODIFIED LINE ---
-        // The original LoginComponent is replaced with AuthPage
         return <AuthPage auth={auth} error={error} setError={setError} />;
     }
     
@@ -2199,10 +2046,8 @@ export default function App() {
     }
 
     return (
-        // UPDATED: Main layout for mobile
         <div className="flex flex-col md:flex-row md:h-screen bg-rose-50 font-sans">
-            <Notification message={notification} /> {/* ADDED: Notification component */}
-            {/* --- ADDED: Confirmation Modal --- */}
+            <Notification message={notification} />
             <ConfirmationModal 
                 isOpen={confirmModal.isOpen}
                 title={confirmModal.title}
@@ -2224,14 +2069,9 @@ export default function App() {
                 handleLogout={handleLogout}
                 isMobileMenuOpen={isMobileMenuOpen}
                 setIsMobileMenuOpen={setIsMobileMenuOpen}
-                showNotification={showNotification} // PASSED: Notification handler
+                showNotification={showNotification}
             />
-            {/* --- UPDATED: Removed "mt-16" and adjusted desktop padding --- */}
             <main className="flex-1 overflow-y-auto p-6 md:px-10 md:pt-12 md:pb-10">
-                {/* - p-6: Sets base padding for mobile
-                  - md:px-10 md:pb-10: Sets desktop padding for sides/bottom
-                  - md:pt-12: Sets a larger desktop padding-top (3rem) to move headers down
-                */}
                 {renderContent()}
             </main>
         </div>

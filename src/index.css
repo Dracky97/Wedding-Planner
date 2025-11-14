@@ -1,17 +1,5 @@
 @import "tailwindcss";
 
-/*
-  This block creates the full-screen hero background.
-*/
-.hero-background {
-  /* This creates the "opacity reduced" effect by putting a semi-transparent black layer on top */
-  /* --- IMPORTANT: Change 'my-hero-image.jpg' to the exact name of your image --- */
-  background-image: linear-gradient(rgba(25, 25, 25, 0.648), rgba(37, 37, 37, 0.692)), url('/src/assets/hero-bg.jpg');
-  
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-}
 
 /* We don't need the gradient animation anymore */
 /*
