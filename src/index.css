@@ -1,3 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/*
+  This block creates the full-screen hero background.
+*/
+.hero-background {
+  /* This creates the "opacity reduced" effect by putting a semi-transparent black layer on top */
+  /* --- IMPORTANT: Change 'my-hero-image.jpg' to the exact name of your image --- */
+  background-image: linear-gradient(rgba(25, 25, 25, 0.648), rgba(37, 37, 37, 0.692)), url('/src/assets/hero-bg.jpg');
+  
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* We don't need the gradient animation anymore */
+/*
+@keyframes gradientBG {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+*/
+
+/* Add a simple fade-in animation for the hero */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 1s ease-out forwards;
+}
+
+/* This was the animation for the notification bell in App.jsx */
+@keyframes fade-in-out {
+  0% { opacity: 0; transform: translateY(-20px) translateX(-50%); }
+  10% { opacity: 1; transform: translateY(0) translateX(-50%); }
+  90% { opacity: 1; transform: translateY(0) translateX(-50%); }
+  100% { opacity: 0; transform: translateY(-20px) translateX(-50%); }
+}
+
+.animate-fade-in-out {
+  animation: fade-in-out 3s ease-in-out forwards;
+}
+
+html {
+  scroll-behavior: smooth;
+}

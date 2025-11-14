@@ -1,65 +1,63 @@
 import React from 'react';
-import { PartyPopper, CheckSquare, PiggyBank, Users } from 'lucide-react';
+import HeroImage from '/src/assets/hero-bg.jpg'; // <-- ADD THIS LINE
 
 /**
- * This is the new LandingPage component.
- * It's a simple presentational component that receives one prop:
+ * A minimalist, full-screen hero landing page, inspired by planning.wedding.
+ * It receives one prop:
  * `onGetStarted`: A function to call when the user clicks the "Get Started" button.
  */
 const LandingPage = ({ onGetStarted }) => {
-    const features = [
-        {
-            icon: CheckSquare,
-            title: 'Comprehensive Checklist',
-            description: 'Never miss a detail with our timeline-based checklist.',
-        },
-        {
-            icon: PiggyBank,
-            title: 'Budget Tracking',
-            description: 'Manage your expenses, track payments, and stay on budget.',
-        },
-        {
-            icon: Users,
-            title: 'Guest List Management',
-            description: 'Organize your guests, track RSVPs, and manage meal choices.',
-        },
-        {
-            icon: PartyPopper,
-            title: 'Collaborative Planning',
-            description: 'Share your plan with your partner and plan together in real-time.',
-        },
-    ];
-
     return (
-        <div className="flex items-center justify-center min-h-screen bg-rose-50 p-6">
-            <div className="w-full max-w-4xl p-10 bg-white rounded-xl shadow-lg text-center">
-                <h1 className="text-5xl font-bold text-rose-900 mb-6">
-                    Plan Your Perfect Day
+        // The main container uses the custom 'hero-background' class from index.css
+       <div 
+    className="h-screen w-screen flex flex-col items-center justify-center text-center text-white p-6"
+    style={{
+      backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.65)), url(${HeroImage})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat'
+    }}
+>
+            
+            {/* Navigation (optional, kept simple) */}
+            <nav className="absolute top-0 left-0 w-full p-6 flex justify-between items-center">
+                <h1 className="text-2xl font-bold tracking-tight text-white" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
+                    Wedding Planner
                 </h1>
-                <p className="text-xl text-gray-600 mb-12">
-                    The collaborative, real-time wedding planner designed to make your
-                    dream wedding a stress-free reality.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-12 text-left">
-                    {features.map((feature) => (
-                        <div key={feature.title} className="flex flex-col items-center md:items-start text-center md:text-left">
-                            <div className="flex-shrink-0 mb-4">
-                                <feature.icon className="w-12 h-12 text-rose-600" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-rose-800 mb-2">{feature.title}</h3>
-                            <p className="text-sm text-gray-500">{feature.description}</p>
-                        </div>
-                    ))}
-                </div>
-
                 <button
                     onClick={onGetStarted}
-                    className="px-10 py-4 bg-rose-600 text-white text-lg rounded-lg font-medium hover:bg-rose-700 transition-colors shadow-md"
+                    className="font-medium text-white hover:text-rose-100 transition-colors"
+                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
                 >
-                    Get Started
+                    Login / Sign Up
                 </button>
-            </div>
+            </nav>
+
+            {/* Hero Content */}
+            <main className="relative z-10 animate-fadeIn">
+                <h2 
+                    className="text-5xl md:text-7xl font-bold text-white tracking-tight"
+                    style={{ textShadow: '0 4px 10px rgba(0,0,0,0.3)' }}
+                >
+                    Plan your wedding,
+                    <br />
+                    all in one place.
+                </h2>
+                
+                <p 
+                    className="text-xl md:text-2xl text-rose-100 mt-6 max-w-2xl mx-auto"
+                    style={{ textShadow: '0 2px 5px rgba(0,0,0,0.3)' }}
+                >
+                    The simple, collaborative, and beautiful way to plan your perfect day.
+                </p>
+                
+                <button
+                    onClick={onGetStarted}
+                    className="mt-12 px-10 py-4 bg-rose-600 text-white text-lg rounded-lg font-medium shadow-xl hover:bg-rose-700 transition-all duration-300 transform hover:scale-105"
+                >
+                    Get Started for Free
+                </button>
+            </main>
         </div>
     );
 };

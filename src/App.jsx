@@ -21,7 +21,8 @@ import {
   Settings as SettingsIcon, 
   Download, 
   Upload, 
-  Key, 
+  Key,
+  Clock,
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import {
@@ -186,7 +187,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                     <label className="text-xs text-rose-200 font-medium">Your Plan ID:</label>
                     <div className="flex items-center justify-between mt-1">
                         <span className="text-sm font-mono text-white truncate mr-2">{planId}</span>
-                        <button 
+                        <button
                             onClick={copyPlanId}
                             title="Copy Plan ID"
                             className="text-rose-200 hover:text-white transition-colors"
@@ -194,6 +195,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                             <Copy className="w-4 h-4" />
                         </button>
                     </div>
+                    <p className="text-xs text-rose-300 mt-2">Dont share the Planner ID with other than your loved ones.</p>
                 </div>
             )}
             
@@ -911,56 +913,57 @@ const Agenda = ({ agendaItems, db, basePath }) => {
     return (
         <>
             <div className="flex justify-between items-center mb-8">
-                <h1 className="text-4xl font-bold text-rose-900">Wedding Agenda</h1>
+                <h1 className="text-4xl font-bold text-rose-900 flex items-center space-x-3">
+                    <Clock className="w-10 h-10" />
+                    <span>Wedding Day Agenda</span>
+                </h1>
                 <button onClick={addAgendaItem} className="bg-rose-600 text-white px-5 py-2.5 rounded-lg shadow-md hover:bg-rose-700 transition-colors flex items-center space-x-2">
                     <Plus className="w-5 h-5" />
                     <span>Add Event</span>
                 </button>
             </div>
             
-            {/* --- UPDATED: Switched from <table> to a list-based layout --- */}
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                {/* Header Row */}
-                <div className="flex bg-rose-100">
-                    <h2 className="p-4 font-semibold text-rose-800 w-1/3 md:w-1/4">Time</h2>
-                    <h2 className="p-4 font-semibold text-rose-800 flex-1">Event</h2>
-                    <div className="p-4 w-12"></div> {/* Spacer for delete button */}
-                </div>
-                
-                {/* Agenda Items */}
-                <div className="divide-y divide-rose-100">
-                    {sortedAgenda.length === 0 && (
-                        <p className="p-4 text-gray-500 italic">Your agenda is empty. Add an event to get started!</p>
-                    )}
-                    {sortedAgenda.map(item => (
-                        <div key={item.id} className="flex items-center">
-                            <div className="p-3 w-1/3 md:w-1/4">
-                                <input 
-                                    type="text" 
-                                    value={item.time} 
-                                    onChange={e => updateAgendaItem(item.id, 'time', e.target.value)} 
-                                    className="w-full p-2 rounded border-gray-300" 
-                                    placeholder="e.g., 10:00 AM"
-                                />
+            {/* --- NEW: Visual Timeline Layout --- */}
+            <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                {sortedAgenda.length === 0 ? (
+                    <p className="p-4 text-center text-gray-500 italic">Your agenda is empty. Add an event to get started!</p>
+                ) : (
+                    // Timeline container
+                    <div className="relative border-l-2 border-rose-200 ml-6 space-y-8">
+                        {sortedAgenda.map((item, index) => (
+                            <div key={item.id} className="relative">
+                                {/* Timeline Dot */}
+                                <div className="absolute -left-4 top-1.5 w-6 h-6 bg-rose-600 rounded-full border-4 border-white"></div>
+
+                                {/* Content Box */}
+                                <div className="ml-10 bg-white p-4 rounded-lg shadow-sm border border-rose-100 relative">
+                                    <div className="flex flex-col md:flex-row md:items-center md:space-x-4">
+                                        {/* Time Input */}
+                                        <input
+                                            type="text"
+                                            value={item.time}
+                                            onChange={e => updateAgendaItem(item.id, 'time', e.target.value)}
+                                            className="w-full md:w-32 p-2 rounded border-gray-300 font-medium text-rose-900"
+                                            placeholder="e.g., 10:00 AM"
+                                        />
+                                        {/* Event Input */}
+                                        <input
+                                            type="text"
+                                            value={item.event}
+                                            onChange={e => updateAgendaItem(item.id, 'event', e.target.value)}
+                                            className="w-full flex-1 p-2 rounded border-gray-300 mt-2 md:mt-0"
+                                            placeholder="e.g., Ceremony Starts"
+                                        />
+                                    </div>
+                                    {/* Delete Button positioned to the right */}
+                                    <button onClick={() => deleteAgendaItem(item.id)} className="absolute top-2 right-2 text-gray-400 hover:text-red-600 p-1">
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
+                                </div>
                             </div>
-                            <div className="p-3 flex-1">
-                                <input 
-                                    type="text" 
-                                    value={item.event} 
-                                    onChange={e => updateAgendaItem(item.id, 'event', e.target.value)} 
-                                    className="w-full p-2 rounded border-gray-300"
-                                    placeholder="e.g., Ceremony Starts"
-                                />
-                            </div>
-                            {/* --- REMOVED: Location Input --- */}
-                            <div className="p-3 w-12 text-center">
-                                <button onClick={() => deleteAgendaItem(item.id)} className="text-gray-400 hover:text-red-600 p-1">
-                                    <Trash2 className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </>
     );
