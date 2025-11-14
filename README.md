@@ -1,16 +1,60 @@
-# React + Vite
+# Wedding Planner
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A collaborative wedding planning application built with React, Vite, Firebase, and Tailwind CSS.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- User authentication with Firebase Auth
+- Real-time collaborative planning
+- Guest list management
+- Budget tracking
+- Vendor comparison
+- Wedding checklist
+- Document storage
+- Agenda planning
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Expanding the ESLint configuration
+3. Set up Firebase:
+   - Create a Firebase project at https://console.firebase.google.com/
+   - Enable Authentication, Firestore, and Storage
+   - Copy your Firebase config values
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+4. Configure environment variables:
+   - Copy `.env.example` to `.env`
+   - Fill in your Firebase configuration values in `.env`
+
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Environment Variables
+
+The application uses the following environment variables (stored in `.env`):
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_MEASUREMENT_ID`
+
+## Security
+
+API keys and sensitive configuration are stored in environment variables and excluded from version control via `.gitignore`.
+
+## Tech Stack
+
+- React 18
+- Vite
+- Firebase (Auth, Firestore, Storage)
+- Tailwind CSS
+- Lucide React (icons)

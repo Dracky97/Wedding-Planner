@@ -65,13 +65,13 @@ import AuthPage from './AuthPage';
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyDoFacHNvwxYJ0aHOjbKYn0_FSUPg8fGSs",
-  authDomain: "wedding-planner-19dd3.firebaseapp.com",
-  projectId: "wedding-planner-19dd3",
-  storageBucket: "wedding-planner-19dd3.firebasestorage.app",
-  messagingSenderId: "98616574813",
-  appId: "1:98616574813:web:61bbd92d83dd64a0e9deb4",
-  measurementId: "G-822T83WFF4"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 // --- END YOUR FIREBASE CONFIG ---
 
@@ -1812,8 +1812,10 @@ export default function App() {
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
         console.log("DEBUG: Initializing Firebase & Auth");
-        if (!firebaseConfig.apiKey) {
-            console.error("Firebase config is missing!");
+        if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'your_api_key_here') {
+            console.error("Firebase config is missing or not configured!");
+            setError("Firebase configuration is missing. Please check your .env file and ensure all Firebase environment variables are set.");
+            setIsLoading(false);
             return;
         }
 
@@ -2036,10 +2038,24 @@ export default function App() {
         return <h1 className="text-3xl font-bold p-10">Loading Planner...</h1>;
     }
 
+    if (error && !auth) {
+        return (
+            <div className="flex items-center justify-center h-screen w-full bg-rose-50">
+                <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-xl shadow-lg">
+                    <h1 className="text-3xl font-bold text-center text-red-600">Configuration Error</h1>
+                    <p className="text-gray-600 text-center">{error}</p>
+                    <p className="text-sm text-gray-500 text-center">
+                        Please check your environment configuration and try again.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     if (!user) {
         return <AuthPage auth={auth} error={error} setError={setError} />;
     }
-    
+
     if (!planId) {
         return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} />;
     }
