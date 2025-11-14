@@ -62,9 +62,6 @@ import { nanoid } from 'nanoid';
 // --- ADDED: Import for the new AuthPage wrapper ---
 import AuthPage from './AuthPage';
 
-// --- UPDATED: Import for the new Native Banner component ---
-import AdsterraNativeBanner from './AdsterraNativeBanner';
-
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -1270,7 +1267,7 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
 };
 
 // --- ADDED: PlanSelector Component ---
-const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
+const PlanSelector = ({ db, user, setPlanId, setError, error, handleLogout }) => {
     const [joinId, setJoinId] = useState('');
 
     const createNewPlan = async () => {
@@ -1362,7 +1359,17 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
 
     return (
         <div className="flex items-center justify-center h-screen w-full bg-rose-50">
-            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg">
+            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg relative">
+                <div className="absolute top-4 right-4">
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center space-x-2 px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                        title="Logout"
+                    >
+                        <LogOut className="w-4 h-4" />
+                        <span>Logout</span>
+                    </button>
+                </div>
                 <div className="text-center">
                     <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
                     <p className="text-gray-600 mt-2">Get started by creating a new plan or joining your partner's plan.</p>
@@ -1381,14 +1388,6 @@ const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
                         <span>Create a New Plan</span>
                     </button>
 
-                    {/* --- 2. NATIVE BANNER AD BLOCK --- */}
-                    <div className="my-4 flex justify-center">
-                        <AdsterraNativeBanner
-                            scriptSrc="//pl28049633.effectivegatecpm.com/a66f11eac893e2a95ec6f14d617ff20c/invoke.js"
-                            containerId="container-a66f11eac893e2a95ec6f14d617ff20c"
-                        />
-                    </div>
-                    {/* --- END AD BLOCK --- */}
 
 
                     {/* --- 3. "or" separator --- */}
@@ -2042,7 +2041,7 @@ export default function App() {
     }
     
     if (!planId) {
-        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} />;
+        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} />;
     }
 
     return (
