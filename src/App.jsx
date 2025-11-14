@@ -62,6 +62,9 @@ import { nanoid } from 'nanoid';
 // --- ADDED: Import for the new AuthPage wrapper ---
 import AuthPage from './AuthPage';
 
+// --- ADDED: Import for the Adsterra component ---
+import AdsterraComponent from './AdsterraComponent';
+
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -195,7 +198,7 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
                             <Copy className="w-4 h-4" />
                         </button>
                     </div>
-                    <p className="text-xs text-rose-200 mt-2">Don't share the Planner ID with other than your loved ones.</p>
+                    <p className="text-xs text-rose-300 mt-2">Dont share the Planner ID with other than your loved ones.</p>
                 </div>
             )}
             
@@ -1329,7 +1332,7 @@ const RecentPlans = ({ user, db, setPlanId, setError }) => {
 };
 
 // --- ADDED: PlanSelector Component ---
-const PlanSelector = ({ db, user, setPlanId, setError, error, handleLogout }) => {
+const PlanSelector = ({ db, user, setPlanId, setError, error }) => {
     const [joinId, setJoinId] = useState('');
 
     const createNewPlan = async () => {
@@ -1460,14 +1463,7 @@ const PlanSelector = ({ db, user, setPlanId, setError, error, handleLogout }) =>
 
     return (
         <div className="flex items-center justify-center h-screen w-full bg-rose-50">
-            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg relative">
-                <button
-                    onClick={handleLogout}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 transition-colors"
-                    title="Logout"
-                >
-                    <LogOut className="w-5 h-5" />
-                </button>
+            <div className="w-full max-w-2xl p-8 space-y-6 bg-white rounded-xl shadow-lg">
                 <div className="text-center">
                     <h1 className="text-3xl font-bold text-rose-900">Welcome!</h1>
                     <p className="text-gray-600 mt-2">Get started by creating a new plan or joining your partner's plan.</p>
@@ -1477,6 +1473,18 @@ const PlanSelector = ({ db, user, setPlanId, setError, error, handleLogout }) =>
                 <RecentPlans user={user} db={db} setPlanId={setPlanId} setError={setError} />
 
                 <div className="border-t pt-6">
+
+                    {/* --- ADSTERRA AD BLOCK --- */}
+                    <div className="mb-4 flex justify-center">
+                        <AdsterraComponent
+                            atKey="a8996032ae7a0eb712cea6174a089722"
+                            atFormat="iframe"
+                            atHeight={90}
+                            atWidth={728}
+                        />
+                    </div>
+                    {/* --- END AD BLOCK --- */}
+
                     {/* Create Plan Button */}
                     <button
                         onClick={createNewPlan}
@@ -2183,11 +2191,11 @@ export default function App() {
     if (!user) {
         // --- THIS IS THE MODIFIED LINE ---
         // The original LoginComponent is replaced with AuthPage
-        return <AuthPage auth={auth} db={db} error={error} setError={setError} />;
+        return <AuthPage auth={auth} error={error} setError={setError} />;
     }
     
     if (!planId) {
-        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} />;
+        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} />;
     }
 
     return (
