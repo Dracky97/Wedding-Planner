@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import LandingPage from './LandingPage';
 
+// --- 1. IMPORT THE AD COMPONENT ---
+import AdsterraNativeBanner from './AdsterraNativeBanner';
+
 // Imports that were in App.jsx but are needed by LoginComponent
 import { LogIn, UserPlus } from 'lucide-react';
 import {
@@ -182,6 +185,20 @@ const LoginComponent = ({ auth, db, error, setError }) => {
                 >
                     {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Login'}
                 </button>
+                {/* --- 2. ADD YOUR NATIVE BANNER AD BLOCK HERE --- */}
+                <div className="pt-4 mt-4 border-t border-gray-200">
+                    <p className="text-center text-xs text-gray-500 mb-2">
+                        Advertisements help us keep this service free.
+                    </p>
+                    <div className="flex justify-center">
+                        <AdsterraNativeBanner
+                            scriptSrc="//pl28049633.effectivegatecpm.com/a66f11eac893e2a95ec6f14d617ff20c/invoke.js"
+                            containerId="container-a66f11eac893e2a95ec6f14d617ff20c"
+                        />
+                    </div>
+                </div>
+                {/* --- END AD BLOCK --- */}
+                
             </div>
         </div>
     );
