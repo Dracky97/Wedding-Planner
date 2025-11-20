@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -12,15 +13,15 @@ import {
   LogOut,
   PartyPopper,
   // UserPlus, // <-- REMOVED
-  Menu, 
-  X, 
-  ListTodo, 
-  Folder, 
-  UploadCloud, 
-  FileText, 
-  Settings as SettingsIcon, 
-  Download, 
-  Upload, 
+  Menu,
+  X,
+  ListTodo,
+  Folder,
+  UploadCloud,
+  FileText,
+  Settings as SettingsIcon,
+  Download,
+  Upload,
   Key,
   Clock,
 } from 'lucide-react';
@@ -44,9 +45,10 @@ import {
     onSnapshot,
     collection,
     query,
-    where, 
-    writeBatch, 
-    getDocs 
+    where,
+    writeBatch,
+    getDocs,
+    orderBy
 } from 'firebase/firestore';
 // --- ADDED: Firebase Storage ---
 import {
@@ -61,6 +63,12 @@ import { nanoid } from 'nanoid';
 
 // --- ADDED: Import for the new AuthPage wrapper ---
 import AuthPage from './AuthPage';
+
+// --- ADDED: Imports for new public pages ---
+import LandingPage from './LandingPage';
+import AboutUs from './AboutUs';
+import PrivacyPolicy from './PrivacyPolicy';
+import Blog from './Blog';
 
 // --- YOUR FIREBASE CONFIG ---
 // Your web app's Firebase configuration
@@ -120,6 +128,10 @@ const Sidebar = ({ currentView, setCurrentView, planId, handleLogout, isMobileMe
         { key: 'agenda', name: 'Agenda', icon: ListTodo }, // ADDED: Agenda nav item
         { key: 'documents', name: 'Documents', icon: Folder }, // ADDED: Documents tab
         { key: 'settings', name: 'Settings', icon: SettingsIcon }, // ADDED: Settings tab
+        ...(userRole === 'admin' ? [
+            { key: 'blogs', name: 'Manage Blogs', icon: FileText },
+            { key: 'users', name: 'Manage Users', icon: Users }
+        ] : []),
     ];
 
     const copyPlanId = () => {
@@ -1457,6 +1469,203 @@ const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
     );
 };
 
+// --- ADDED: ManageBlogs Component ---
+const ManageBlogs = ({ db, showNotification }) => {
+    const [blogs, setBlogs] = useState([]);
+    const [title, setTitle] = useState('');
+    const [excerpt, setExcerpt] = useState('');
+    const [content, setContent] = useState('');
+    const [isAdding, setIsAdding] = useState(false);
+
+    useEffect(() => {
+        if (!db) return;
+        const blogsQuery = query(collection(db, 'blogs'), orderBy('createdAt', 'desc'));
+        const unsubscribe = onSnapshot(blogsQuery, (querySnapshot) => {
+            const blogsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setBlogs(blogsData);
+        }, (error) => console.error("Error fetching blogs: ", error));
+        return () => unsubscribe();
+    }, [db]);
+
+    const addBlog = async (e) => {
+        e.preventDefault();
+        if (!title || !excerpt || !content) {
+            showNotification("Please fill all fields.");
+            return;
+        }
+        setIsAdding(true);
+        try {
+            await addDoc(collection(db, 'blogs'), {
+                title,
+                excerpt,
+                content,
+                createdAt: new Date(),
+                readTime: `${Math.ceil(content.split(' ').length / 200)} min read`
+            });
+            setTitle('');
+            setExcerpt('');
+            setContent('');
+            showNotification("Blog added successfully!");
+        } catch (error) {
+            console.error("Error adding blog: ", error);
+            showNotification("Error adding blog.");
+        } finally {
+            setIsAdding(false);
+        }
+    };
+
+    const deleteBlog = async (id) => {
+        try {
+            await deleteDoc(doc(db, 'blogs', id));
+            showNotification("Blog deleted.");
+        } catch (error) {
+            console.error("Error deleting blog: ", error);
+            showNotification("Error deleting blog.");
+        }
+    };
+
+    return (
+        <>
+            <h1 className="text-4xl font-bold text-rose-900 mb-8">Manage Blogs</h1>
+
+            <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+                <h2 className="text-xl font-semibold text-rose-800 mb-4">Add New Blog</h2>
+                <form onSubmit={addBlog} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                        <input
+                            type="text"
+                            value={title}
+                            onChange={e => setTitle(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+                        <textarea
+                            value={excerpt}
+                            onChange={e => setExcerpt(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg"
+                            rows="3"
+                            required
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+                        <textarea
+                            value={content}
+                            onChange={e => setContent(e.target.value)}
+                            className="w-full p-2 border border-gray-300 rounded-lg"
+                            rows="10"
+                            required
+                        />
+                    </div>
+                    <button
+                        type="submit"
+                        disabled={isAdding}
+                        className="bg-rose-600 text-white px-5 py-2 rounded-lg hover:bg-rose-700 transition-colors disabled:opacity-50"
+                    >
+                        {isAdding ? 'Adding...' : 'Add Blog'}
+                    </button>
+                </form>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-rose-100">
+                        <tr>
+                            <th className="p-4 font-semibold text-rose-800">Title</th>
+                            <th className="p-4 font-semibold text-rose-800">Excerpt</th>
+                            <th className="p-4 font-semibold text-rose-800">Date</th>
+                            <th className="p-4 font-semibold text-rose-800"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {blogs.map(blog => (
+                            <tr key={blog.id} className="border-b border-rose-100 last:border-b-0">
+                                <td className="p-4 font-medium text-gray-800">{blog.title}</td>
+                                <td className="p-4 text-gray-600 truncate max-w-xs">{blog.excerpt}</td>
+                                <td className="p-4 text-gray-500">{blog.createdAt?.toDate().toLocaleDateString()}</td>
+                                <td className="p-4 text-center">
+                                    <button onClick={() => deleteBlog(blog.id)} className="text-gray-400 hover:text-red-600 p-1">
+                                        <Trash2 className="w-4 h-4" />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </>
+    );
+};
+
+// --- ADDED: ManageUsers Component ---
+const ManageUsers = ({ db, showNotification }) => {
+    const [users, setUsers] = useState([]);
+
+    useEffect(() => {
+        if (!db) return;
+        const usersQuery = query(collection(db, 'users'));
+        const unsubscribe = onSnapshot(usersQuery, (querySnapshot) => {
+            const usersData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setUsers(usersData);
+        }, (error) => console.error("Error fetching users: ", error));
+        return () => unsubscribe();
+    }, [db]);
+
+    const updateUserRole = async (userId, newRole) => {
+        try {
+            await setDoc(doc(db, 'users', userId), { role: newRole }, { merge: true });
+            showNotification("User role updated.");
+        } catch (error) {
+            console.error("Error updating user role: ", error);
+            showNotification("Error updating user role.");
+        }
+    };
+
+    return (
+        <>
+            <h1 className="text-4xl font-bold text-rose-900 mb-8">Manage Users</h1>
+
+            <div className="bg-white rounded-xl shadow-lg overflow-x-auto">
+                <table className="w-full text-left">
+                    <thead className="bg-rose-100">
+                        <tr>
+                            <th className="p-4 font-semibold text-rose-800">Name</th>
+                            <th className="p-4 font-semibold text-rose-800">Email</th>
+                            <th className="p-4 font-semibold text-rose-800">Role</th>
+                            <th className="p-4 font-semibold text-rose-800">Created</th>
+                            <th className="p-4 font-semibold text-rose-800"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.map(user => (
+                            <tr key={user.id} className="border-b border-rose-100 last:border-b-0">
+                                <td className="p-4 font-medium text-gray-800">{user.name}</td>
+                                <td className="p-4 text-gray-600">{user.email}</td>
+                                <td className="p-4">
+                                    <select
+                                        value={user.role || 'user'}
+                                        onChange={e => updateUserRole(user.id, e.target.value)}
+                                        className="p-1 border border-gray-300 rounded"
+                                    >
+                                        <option value="user">User</option>
+                                        <option value="admin">Admin</option>
+                                    </select>
+                                </td>
+                                <td className="p-4 text-gray-500">{user.createdAt?.toDate().toLocaleDateString()}</td>
+                                <td className="p-4"></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </>
+    );
+};
+
 // --- ADDED: Settings Component ---
 const Settings = ({ auth, user, db, basePath, planId, guests, budgetItems, vendors, tasks, agendaItems, documents, totalBudget, showNotification, setConfirmModal, setPlanId, setError }) => {
     const [resetEmail, setResetEmail] = useState(user?.email || '');
@@ -1808,6 +2017,7 @@ export default function App() {
     const [tasks, setTasks] = useState([]);
     const [agendaItems, setAgendaItems] = useState([]);
     const [documents, setDocuments] = useState([]);
+    const [userRole, setUserRole] = useState(null);
 
     // --- 1. Initialize Firebase & Auth ---
     useEffect(() => {
@@ -1828,14 +2038,28 @@ export default function App() {
         setStorage(storageInstance);
         setIsLoading(true);
 
-        const unsubscribe = onAuthStateChanged(authInstance, (user) => {
+        const unsubscribe = onAuthStateChanged(authInstance, async (user) => {
             console.log("DEBUG: Auth state changed", user ? "User signed in" : "User signed out");
             if (user) {
                 setUser(user);
+                // Fetch user role
+                try {
+                    const userDoc = await getDocs(query(collection(dbInstance, 'users'), where('__name__', '==', user.uid)));
+                    if (!userDoc.empty) {
+                        const userData = userDoc.docs[0].data();
+                        setUserRole(userData.role || 'user');
+                    } else {
+                        setUserRole('user');
+                    }
+                } catch (error) {
+                    console.error("Error fetching user role:", error);
+                    setUserRole('user');
+                }
             } else {
                 setUser(null);
                 setPlanId(null);
                 setBasePath('');
+                setUserRole(null);
             }
             setIsLoading(false);
         });
@@ -2007,6 +2231,8 @@ export default function App() {
         planId,
         showNotification,
         setConfirmModal,
+        user,
+        userRole,
     };
     
     // --- Content Router ---
@@ -2028,6 +2254,10 @@ export default function App() {
                 return <Documents {...pageProps} />;
             case 'settings':
                 return <Settings {...pageProps} auth={auth} user={user} setPlanId={setPlanId} setError={setError} />;
+            case 'blogs':
+                return <ManageBlogs db={db} showNotification={showNotification} />;
+            case 'users':
+                return <ManageUsers db={db} showNotification={showNotification} />;
             default:
                 return <h1 className="text-3xl font-bold">Page Not Found</h1>;
         }
@@ -2052,43 +2282,48 @@ export default function App() {
         );
     }
 
-    if (!user) {
-        return <AuthPage auth={auth} error={error} setError={setError} />;
-    }
-
-    if (!planId) {
-        return <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} />;
-    }
-
     return (
-        <div className="flex flex-col md:flex-row md:h-screen bg-rose-50 font-sans">
-            <Notification message={notification} />
-            <ConfirmationModal 
-                isOpen={confirmModal.isOpen}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                onConfirm={() => {
-                    confirmModal.onConfirm();
-                    setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
-                }}
-                onCancel={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
-            />
-            <MobileHeader 
-                setIsMobileMenuOpen={setIsMobileMenuOpen}
-                handleLogout={handleLogout}
-            />
-            <Sidebar 
-                currentView={currentView} 
-                setCurrentView={setCurrentView}
-                planId={planId}
-                handleLogout={handleLogout}
-                isMobileMenuOpen={isMobileMenuOpen}
-                setIsMobileMenuOpen={setIsMobileMenuOpen}
-                showNotification={showNotification}
-            />
-            <main className="flex-1 overflow-y-auto p-6 md:px-10 md:pt-12 md:pb-10">
-                {renderContent()}
-            </main>
-        </div>
+        <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/about" element={<AboutUs />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/auth" element={<AuthPage auth={auth} db={db} error={error} setError={setError} />} />
+            <Route path="*" element={
+                !user ? <Navigate to="/auth" /> :
+                !planId ? <PlanSelector db={db} user={user} setPlanId={setPlanId} error={error} setError={setError} handleLogout={handleLogout} /> :
+                (
+                    <div className="flex flex-col md:flex-row md:h-screen bg-rose-50 font-sans">
+                        <Notification message={notification} />
+                        <ConfirmationModal
+                            isOpen={confirmModal.isOpen}
+                            title={confirmModal.title}
+                            message={confirmModal.message}
+                            onConfirm={() => {
+                                confirmModal.onConfirm();
+                                setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+                            }}
+                            onCancel={() => setConfirmModal({ isOpen: false, title: '', message: '', onConfirm: () => {} })}
+                        />
+                        <MobileHeader
+                            setIsMobileMenuOpen={setIsMobileMenuOpen}
+                            handleLogout={handleLogout}
+                        />
+                        <Sidebar
+                            currentView={currentView}
+                            setCurrentView={setCurrentView}
+                            planId={planId}
+                            handleLogout={handleLogout}
+                            isMobileMenuOpen={isMobileMenuOpen}
+                            setIsMobileMenuOpen={setIsMobileMenuOpen}
+                            showNotification={showNotification}
+                        />
+                        <main className="flex-1 overflow-y-auto p-6 md:px-10 md:pt-12 md:pb-10">
+                            {renderContent()}
+                        </main>
+                    </div>
+                )
+            } />
+        </Routes>
     );
 }

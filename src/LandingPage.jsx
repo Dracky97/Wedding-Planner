@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import HeroImage from '/src/assets/hero-bg.jpg'; // <-- ADD THIS LINE
 
 /**
@@ -7,6 +8,7 @@ import HeroImage from '/src/assets/hero-bg.jpg'; // <-- ADD THIS LINE
  * `onGetStarted`: A function to call when the user clicks the "Get Started" button.
  */
 const LandingPage = ({ onGetStarted }) => {
+    const navigate = useNavigate();
     return (
         // The main container uses the custom 'hero-background' class from index.css
        <div 
@@ -24,13 +26,36 @@ const LandingPage = ({ onGetStarted }) => {
                 <h1 className="text-2xl font-bold tracking-tight text-white" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.3)' }}>
                     Wedding Planner
                 </h1>
-                <button
-                    onClick={onGetStarted}
-                    className="font-medium text-white hover:text-rose-100 transition-colors"
-                    style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
-                >
-                    Login / Sign Up
-                </button>
+                <div className="flex space-x-4">
+                    <Link
+                        to="/about"
+                        className="font-medium text-white hover:text-rose-100 transition-colors"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                    >
+                        About
+                    </Link>
+                    <Link
+                        to="/blog"
+                        className="font-medium text-white hover:text-rose-100 transition-colors"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                    >
+                        Blog
+                    </Link>
+                    <Link
+                        to="/privacy"
+                        className="font-medium text-white hover:text-rose-100 transition-colors"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                    >
+                        Privacy
+                    </Link>
+                    <button
+                        onClick={onGetStarted || (() => navigate('/auth'))}
+                        className="font-medium text-white hover:text-rose-100 transition-colors"
+                        style={{ textShadow: '0 1px 3px rgba(0,0,0,0.2)' }}
+                    >
+                        Login / Sign Up
+                    </button>
+                </div>
             </nav>
 
             {/* Hero Content */}
@@ -52,7 +77,7 @@ const LandingPage = ({ onGetStarted }) => {
                 </p>
                 
                 <button
-                    onClick={onGetStarted}
+                    onClick={onGetStarted || (() => navigate('/auth'))}
                     className="mt-12 px-10 py-4 bg-rose-600 text-white text-lg rounded-lg font-medium shadow-xl hover:bg-rose-700 transition-all duration-300 transform hover:scale-105"
                 >
                     Get Started for Free
