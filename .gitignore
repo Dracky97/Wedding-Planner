@@ -15,6 +15,11 @@ dist-ssr
 # Environment variables
 .env
 
+# Admin/debug scripts (not for deployment)
+admin-setup.html
+admin-setup.js
+cleanup-dummy-data.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

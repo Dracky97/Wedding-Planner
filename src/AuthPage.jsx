@@ -3,11 +3,12 @@ import { Link } from 'react-router-dom';
 import LandingPage from './LandingPage';
 
 // Imports that were in App.jsx but are needed by LoginComponent
-import { LogIn, UserPlus } from 'lucide-react';
+import { LogIn, UserPlus, UserCheck } from 'lucide-react';
 import {
     createUserWithEmailAndPassword,
     signInWithEmailAndPassword,
     updateProfile,
+    signInAnonymously,
 } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 
@@ -15,7 +16,7 @@ import { doc, setDoc } from 'firebase/firestore';
  * We are moving the LoginComponent from App.jsx into this file
  * to keep it neatly bundled with the authentication flow.
  */
-const LoginComponent = ({ auth, db, error, setError }) => {
+const LoginComponent = ({ auth, db, error, setError, onGuestLogin }) => {
     const [isLoginView, setIsLoginView] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -23,35 +24,72 @@ const LoginComponent = ({ auth, db, error, setError }) => {
     const [name, setName] = useState('');
     const [mobile, setMobile] = useState('');
     const [confirmEmail, setConfirmEmail] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Show loading screen while Firebase auth is initializing
+    if (!auth) {
+        return (
+            <div className="min-h-screen bg-rose-50 flex items-center justify-center">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold text-rose-900 mb-4">Loading...</h1>
+                    <p className="text-gray-600">Initializing authentication service</p>
+                    <div className="mt-4 animate-spin rounded-full h-8 w-8 border-b-2 border-rose-600 mx-auto"></div>
+                </div>
+            </div>
+        );
+    }
 
     const handleAuth = async (e) => {
         e.preventDefault();
         setError('');
-        console.log("DEBUG: Attempting auth", isLoginView ? "login" : "signup");
+        
+        if (!auth) {
+            setError('Authentication service not available. Please refresh the page.');
+            return;
+        }
+        
+
         
         // Validation for signup
         if (!isLoginView) {
+
             if (password !== confirmPassword) {
+
                 setError('Passwords do not match');
                 return;
             }
             if (password.length < 6) {
+
                 setError('Password must be at least 6 characters long');
                 return;
             }
             if (email !== confirmEmail) {
+
                 setError('Emails do not match');
                 return;
             }
             if (!name.trim()) {
+
                 setError('Name is required');
                 return;
             }
+
+        } else {
+
         }
         
         try {
+            setIsLoading(true);
+
+            
             if (isLoginView) {
-                await signInWithEmailAndPassword(auth, email, password);
+                try {
+                    const result = await signInWithEmailAndPassword(auth, email, password);
+                    const currentUser = auth.currentUser;
+                } catch (innerError) {
+                    console.error("Authentication failed:", innerError);
+                    throw innerError;
+                }
             } else {
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 // Update user profile with name
@@ -68,8 +106,10 @@ const LoginComponent = ({ auth, db, error, setError }) => {
                 });
             }
         } catch (err) {
-            console.error("DEBUG: Auth error", err);
+            console.error("Authentication error:", err.message);
             setError(err.message);
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -189,10 +229,25 @@ const LoginComponent = ({ auth, db, error, setError }) => {
                     {error && <p className="text-sm text-red-600">{error}</p>}
                     <button
                         type="submit"
-                        className="w-full p-3 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 transition-colors flex items-center justify-center space-x-2"
+                        disabled={isLoading || !auth}
+                        onClick={(e) => {
+
+                            if (!auth) {
+                                console.error("Authentication service not available");
+                                e.preventDefault();
+                                setError('Authentication service not available. Please refresh the page.');
+                                return;
+                            }
+                            // Let the form onSubmit handle it, but log the click
+                        }}
+                        className={`w-full p-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
+                            isLoading || !auth 
+                                ? 'bg-gray-400 cursor-not-allowed' 
+                                : 'bg-rose-600 hover:bg-rose-700'
+                        } text-white`}
                     >
                         {isLoginView ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                        <span>{isLoginView ? 'Login' : 'Create Account'}</span>
+                        <span>{isLoading ? 'Signing In...' : isLoginView ? 'Login' : 'Create Account'}</span>
                     </button>
                 </form>
                 <button
@@ -211,6 +266,25 @@ const LoginComponent = ({ auth, db, error, setError }) => {
                     {isLoginView ? 'Need an account? Sign Up' : 'Already have an account? Login'}
                 </button>
 
+                {/* Guest Login Button */}
+                <div className="border-t pt-4">
+                    <p className="text-sm text-gray-600 text-center mb-3">Want to try it out first?</p>
+                    <button
+                        onClick={() => {
+                            if (onGuestLogin) {
+                                onGuestLogin();
+                            }
+                        }}
+                        className="w-full p-3 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300"
+                    >
+                        <UserCheck className="w-5 h-5" />
+                        <span>Continue as Guest</span>
+                    </button>
+                    <p className="text-xs text-gray-500 text-center mt-2">
+                        Test the app without creating an account. Data won't be saved.
+                    </p>
+                </div>
+
                 </div>
             </div>
         </div>
@@ -223,11 +297,11 @@ const LoginComponent = ({ auth, db, error, setError }) => {
  * It holds a state `showLogin` to decide whether to show
  * the LandingPage or the LoginComponent.
  */
-const AuthPage = ({ auth, db, error, setError }) => {
-    const [showLogin, setShowLogin] = useState(false);
+const AuthPage = ({ auth, db, error, setError, onGuestLogin }) => {
+    const [showLogin, setShowLogin] = useState(true);
 
     if (showLogin) {
-        return <LoginComponent auth={auth} db={db} error={error} setError={setError} />;
+        return <LoginComponent auth={auth} db={db} error={error} setError={setError} onGuestLogin={onGuestLogin} />;
     }
 
     return <LandingPage onGetStarted={() => setShowLogin(true)} />;

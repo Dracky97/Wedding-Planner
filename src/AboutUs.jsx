@@ -18,9 +18,6 @@ const AboutUs = () => {
                             <Link to="/about" className="text-rose-600 px-3 py-2 rounded-md text-sm font-medium">
                                 About Us
                             </Link>
-                            <Link to="/privacy" className="text-gray-600 hover:text-rose-600 px-3 py-2 rounded-md text-sm font-medium">
-                                Privacy Policy
-                            </Link>
                             <Link to="/blog" className="text-gray-600 hover:text-rose-600 px-3 py-2 rounded-md text-sm font-medium">
                                 Blog
                             </Link>

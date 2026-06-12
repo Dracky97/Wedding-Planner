@@ -1,0 +1,18 @@
+{
+  "name": "Wedding Planner",
+  "short_name": "WedPlanner",
+  "description": "Plan your perfect wedding day",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#fff1f2",
+  "theme_color": "#e11d48",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
